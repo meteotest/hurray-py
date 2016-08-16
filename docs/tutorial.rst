@@ -16,14 +16,12 @@ Creating a database/file
 ------------------------
 
 Establish a server connection and create an hdf5 file:
-
    .. code-block:: python
 
     >>> conn = hp.connect('localhost', '2222')
     >>> conn.create_db('mydatabase.h5')
 
 Connect to the created file:
-
    .. code-block:: python
 
     >>> db = conn.connect_db('mydatabase.h5')
@@ -37,7 +35,6 @@ Working with groups and datasets
 --------------------------------
 
 To create a subgroup ``/mygroup`` run:
-
    .. code-block:: python
 
     >>> grp = db.create_group("mygrp")
@@ -45,7 +42,6 @@ To create a subgroup ``/mygroup`` run:
     <HDF5 Group (db=mydatabase, path=/mygrp)>
 
 Now let's store a 2D array in that group:
-
    .. code-block:: python
 
     >>> data = np.array([[1, 2, 3], [4, 5, 6]])
@@ -55,7 +51,6 @@ Now let's store a 2D array in that group:
 
 Let's fetch the array from the server and read only its first dimension (note
 that only the requested portion of the array is transferred over the network):
-
    .. code-block:: python
 
     >>> dataset = db['/mygrp/myarray']
@@ -66,7 +61,6 @@ that only the requested portion of the array is transferred over the network):
     array([1, 2, 3])
 
 Numpy-like broadcasting allows us to overwrite only a portion of the array:
-
    .. code-block:: python
 
     >>> x = np.array([8, 9, 10])
