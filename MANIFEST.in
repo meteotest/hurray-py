@@ -1,0 +1,6 @@
+include INSTALL
+include LICENSE.txt
+include README.rst
+exclude __pycache__
+recursive-include tests *
+recursive-exclude tests *.pyc

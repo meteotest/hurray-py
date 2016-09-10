@@ -50,14 +50,14 @@ class Node():
         args = {
             'path': path,
         }
-        result, _ = self._conn.send_rcv('get_node', args)
+        result = self._conn.send_rcv('get_node', args)
 
-        if result['statuscode'] == OK:
-            if result['nodetype'] == 'group':
+        if result[b'status'] == OK:
+            if result[b'nodetype'] == b'group':
                 return Group(self._conn, path)
-            elif result['nodetype'] == 'dataset':
-                shape = tuple(result['shape'])  # compatibility with numpy
-                dtype = result['dtype']
+            elif result[b'nodetype'] == b'dataset':
+                shape = tuple(result[b'shape'])  # compatibility with numpy
+                dtype = result[b'dtype']
                 return Dataset(self._conn, path, shape=shape, dtype=dtype)
             else:
                 raise RuntimeError("server returned unknown node type")
@@ -98,10 +98,10 @@ class Group(Node):
         args = {
             'path': group_path,
         }
-        result, _ = self._conn.send_rcv('create_group', args)
-        if result['statuscode'] == OK:
+        result = self._conn.send_rcv('create_group', args)
+        if result[b'status'] == OK:
             return Group(self._conn, group_path)
-        elif result['statuscode'] == GROUP_EXISTS:
+        elif result[b'status'] == GROUP_EXISTS:
             raise ValueError("Group already exists")
 
     def require_group(self, name):
@@ -145,9 +145,9 @@ class Group(Node):
             args = {
                 'path': dst_path,
             }
-        result, _ = self._conn.send_rcv('create_dataset', args, data)
+        result = self._conn.send_rcv('create_dataset', args, data)
 
-        if result['statuscode'] == DATASET_EXISTS:
+        if result[b'status'] == DATASET_EXISTS:
             raise ValueError("dataset already exists")
         else:
             return Dataset(self._conn, dst_path, shape=shape, dtype=dtype)
@@ -197,12 +197,12 @@ class Dataset(Node):
         # overwritten in the meantime)
         args = {
             'path': self.path,
-            'key': key,  # will be json encoded
+            'key': key
         }
-        result, arr = self._conn.send_rcv('slice_dataset', args)
+        result = self._conn.send_rcv('slice_dataset', args)
 
-        if result['statuscode'] == OK:
-            return arr
+        if result[b'status'] == OK:
+            return result[b'data']
         else:
             # TODO error handling
             raise IndexError("could not get data")
@@ -220,13 +220,13 @@ class Dataset(Node):
         else:
             arr = None
             args['value'] = value
-        result, arr = self._conn.send_rcv('broadcast_dataset', args, arr)
+        result = self._conn.send_rcv('broadcast_dataset', args, arr)
 
-        if result['statuscode'] == OK:
-            return arr
+        if result[b'status'] == OK:
+            return result[b'data']
         else:
             # TODO error handling
-            raise ValueError("operation failed: {}".format(result['statuscode']))
+            raise ValueError("operation failed: {}".format(result[b'status']))
 
     @property
     def shape(self):
@@ -269,10 +269,10 @@ class AttributeManager(object):
         args = {
             'path': self.__path,
         }
-        result, _ = self.__conn.send_rcv('attrs_keys', args)
+        result = self.__conn.send_rcv('attrs_keys', args)
 
-        if result['statuscode'] == OK:
-            return result['keys']
+        if result[b'status'] == OK:
+            return result[b'keys']
         else:
             # TODO error handling
             raise RuntimeError("Error")
@@ -282,9 +282,9 @@ class AttributeManager(object):
             'path': self.__path,
             'key': key,
         }
-        result, arr = self.__conn.send_rcv('attrs_contains', args)
-        if result['statuscode'] == OK:
-            return result['contains']
+        result = self.__conn.send_rcv('attrs_contains', args)
+        if result[b'status'] == OK:
+            return result[b'contains']
         else:
             raise RuntimeError("Error")
 
@@ -293,14 +293,15 @@ class AttributeManager(object):
         Get attribute value for given ``key``.
 
         Returns:
-            a primitive object (string, number) of a numpy array.
+            a primitive object (string, number) or a numpy array.
         """
         args = {
             'path': self.__path,
             'key': key,
         }
-        result, arr = self.__conn.send_rcv('attrs_getitem', args)
-        if result['statuscode'] == OK:
+        result = self.__conn.send_rcv('attrs_getitem', args)
+        arr = result[b'data']
+        if result[b'status'] == OK:
             return arr if arr is not None else result['value']
         else:
             # TODO error handling
@@ -320,9 +321,9 @@ class AttributeManager(object):
         else:
             arr = None
             args['value'] = value
-        result, _ = self.__conn.send_rcv('attrs_setitem', args, arr)
+        result = self.__conn.send_rcv('attrs_setitem', args, arr)
 
-        if result['statuscode'] == OK:
+        if result[b'status'] == OK:
             pass
         else:
             # TODO error handling
@@ -344,8 +345,9 @@ class AttributeManager(object):
             'key': key,
             'default': defaultvalue,
         }
-        result, arr = self.__conn.send_rcv('attrs_get', args)
-        if result['statuscode'] == OK:
+        result = self.__conn.send_rcv('attrs_get', args)
+        arr = result[b'data']
+        if result[b'status'] == OK:
             return arr if arr is not None else result['value']
         else:
             # TODO error handling
