@@ -1,16 +1,16 @@
 #!/usr/bin/env python
-import os
 
-from hurraypy import __version__
+import io
 
 try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
 
-f = open(os.path.join(os.path.dirname(__file__), 'README.rst'))
-long_description = f.read()
-f.close()
+with io.open('README.rst', encoding='utf-8') as f:
+    long_description = f.read()
+
+exec(open('hurraypy/version.py').read())
 
 setup(
     name='hurraypy',
@@ -23,15 +23,16 @@ setup(
     maintainer='Reto Aebersold',
     maintainer_email='aeby@substyle.ch',
     keywords=['h5py', ],
-    license='MIT',
+    license='BSD',
     packages=['hurraypy'],
     classifiers=[
-        'Development Status :: 3 - Alpha',
-        'Environment :: Console',
+        'Development Status :: 4 - Beta',
+        'License :: OSI Approved :: BSD License',
         'Intended Audience :: Developers',
-        'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3.5',
-    ]
+    ],
+    install_requires=['numpy>=1.6.1', 'msgpack-python>=0.4.8'],
+    test_suite='tests.get_tests'
 )
