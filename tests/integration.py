@@ -51,12 +51,12 @@ class IntegrationTest(unittest.TestCase):
         attr_value = 'bar'
 
         dataset.attrs[attr_key] = attr_value
-        self.assertEqual(dataset.attrs['foo'].decode('UTF-8'), attr_value)
+        self.assertEqual(dataset.attrs['foo'], attr_value)
 
         self.assertTrue(attr_key in dataset.attrs)
         self.assertFalse('no' in dataset.attrs)
 
-        self.assertEqual(dataset.attrs.keys(), (bytes(attr_key, encoding='UTF-8'),))
+        self.assertEqual(dataset.attrs.keys(), (attr_key,))
 
         attr_value_array = np.array([0.1, 0.2, 0.5])
 
