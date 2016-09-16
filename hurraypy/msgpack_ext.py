@@ -22,21 +22,49 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-"""The hurray client."""
+"""
+Msgpack encoders and decoders for numpy arrays and slices.
+"""
 
-from __future__ import absolute_import, division, print_function, with_statement
+import numpy as np
+from numpy.lib.format import header_data_from_array_1_0
 
-import logging
 
-from hurraypy.client import connect
+def encode_np_array(obj):
+    """
+    Encode numpy arrays and slices
+    :param obj: object to serialize
+    :return: dictionary with encoded array or slice
+    """
+    if isinstance(obj, np.ndarray):
+        arr = header_data_from_array_1_0(obj)
+        arr['data'] = obj.tostring()
+        arr['__ndarray__'] = True
+        return arr
+    elif isinstance(obj, slice):
+        return {
+            '__slice__': (obj.start, obj.stop, obj.step)
+        }
 
-from .version import __version__
+    return obj
 
-try:  # Python 2.7+
-    from logging import NullHandler
-except ImportError:
-    class NullHandler(logging.Handler):
-        def emit(self, record):
-            pass
 
-logging.getLogger('hurraypy').addHandler(NullHandler())
+def decode_np_array(obj):
+    """
+    Decode numpy arrays and slices
+    :param obj: object to decode
+    :return: numpy array or slice
+    """
+
+    if '__ndarray__' in obj:
+        arr = np.fromstring(obj['data'], dtype=np.dtype(obj['descr']))
+        shape = obj['shape']
+        arr.shape = shape
+        if obj['fortran_order']:
+            arr.shape = shape[::-1]
+            arr = arr.transpose()
+        return arr
+    elif '__slice__' in obj:
+        return slice(*obj['__slice__'])
+
+    return obj

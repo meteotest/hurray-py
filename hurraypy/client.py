@@ -1,3 +1,27 @@
+# Copyright (c) 2016, Meteotest
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#    * Redistributions of source code must retain the above copyright
+#      notice, this list of conditions and the following disclaimer.
+#    * Redistributions in binary form must reproduce the above copyright
+#      notice, this list of conditions and the following disclaimer in the
+#      documentation and/or other materials provided with the distribution.
+#    * Neither the name of Meteotest nor the
+#      names of its contributors may be used to endorse or promote products
+#      derived from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 Hfive Python Client, DB connection interface
 """
@@ -6,14 +30,12 @@ import asyncio
 import struct
 
 import msgpack
-
-from hurraypy.const import FILE_EXISTS, FILE_NOTFOUND
-from hurraypy.msgpack_numpy import decode_np_array, encode_np_array
+from hurraypy.log import log
+from hurraypy.msgpack_ext import decode_np_array, encode_np_array
 from hurraypy.nodes import Group
-
-# 4 bytes are used to encode message lengths
-MSG_LEN = 4
-PROTOCOL_VER = 1
+from hurraypy.protocol import CMD_CREATE_DATABASE, CMD_KW_STATUS, CMD_KW_DB, CMD_CONNECT_DATABASE, CMD_KW_CMD, \
+    CMD_KW_ARGS, CMD_KW_DATA, MSG_LEN, PROTOCOL_VER
+from hurraypy.status_codes import FILE_EXISTS, FILE_NOT_FOUND
 
 
 def _recv(reader):
@@ -30,17 +52,16 @@ def _recv(reader):
     # read protocol version
     protocol_ver = yield from reader.readexactly(MSG_LEN)
     protocol_ver = struct.unpack('>I', protocol_ver)[0]
-    # print("protocol version:", protocol_ver)
 
     # Read message length (4 bytes) and unpack it into an integer
     raw_msg_length = yield from reader.readexactly(MSG_LEN)
     msg_length = struct.unpack('>I', raw_msg_length)[0]
-    # print("message size: {}".format(no_bytes))
+    log.debug("Handle request (Protocol: v%d, Msg size: %d)", protocol_ver, msg_length)
 
     msg_data = yield from reader.readexactly(msg_length)
 
     # decode message
-    return msgpack.unpackb(msg_data, object_hook=decode_np_array, use_list=False)
+    return msgpack.unpackb(msg_data, object_hook=decode_np_array, use_list=False, encoding='utf-8')
 
 
 class Connection:
@@ -50,10 +71,11 @@ class Connection:
 
     def __init__(self, host, port, db=None, unix_socket_path=None):
         """
-        Args:
-            host: host name or IP address
-            port: TCP port
-            db: name of database or None
+
+        :param host:
+        :param port:
+        :param db:
+        :param unix_socket_path:
         """
         self.__loop = asyncio.get_event_loop()
         self.__host = host
@@ -66,11 +88,23 @@ class Connection:
 
     @asyncio.coroutine
     def __connect_tcp(self, host, port):
+        """
+        Create TCP connection
+        :param host:
+        :param port:
+        :return: The reader returned is a StreamReader instance; the writer is a StreamWriter instance.
+        """
         reader, writer = yield from asyncio.open_connection(host, port)
         return reader, writer
 
     @asyncio.coroutine
     def __connect_socket(self, unix_socket_path):
+        """
+        Create UNIX Domain Sockets connection
+        :param host:
+        :param port:
+        :return: The reader returned is a StreamReader instance; the writer is a StreamWriter instance.
+        """
         reader, writer = yield from asyncio.open_unix_connection(unix_socket_path)
         return reader, writer
 
@@ -96,9 +130,9 @@ class Connection:
         Raises:
             OSError if db already exists
         """
-        result = self.send_rcv('create_db', {'name': name})
+        result = self.send_rcv(CMD_CREATE_DATABASE, {CMD_KW_DB: name})
 
-        if result[b'status'] == FILE_EXISTS:
+        if result[CMD_KW_STATUS] == FILE_EXISTS:
             raise OSError('db exists')
 
     def connect_db(self, dbname):
@@ -114,15 +148,15 @@ class Connection:
         Raises:
             ValueError if ``dbname`` does not exist
         """
-        result = self.send_rcv('connect_db', {'name': dbname})
+        result = self.send_rcv(CMD_CONNECT_DATABASE, {CMD_KW_DB: dbname})
 
-        if result[b'status'] == FILE_NOTFOUND:
+        if result[CMD_KW_STATUS] == FILE_NOT_FOUND:
             raise ValueError('db not found')
         else:
             self.__db = dbname
             return Group(self, '/')
 
-    def send_rcv(self, cmd, args, arr=None):
+    def send_rcv(self, cmd, args, data=None):
         """
         Process a request to the server
 
@@ -134,33 +168,32 @@ class Connection:
         Returns:
             Tuple (result, array)
         """
-        if 'db' not in args:
-            args['db'] = self.__db
-        send_rcv_coroutine = self.__send_rcv(cmd, args, arr)
+        if CMD_KW_DB not in args:
+            args[CMD_KW_DB] = self.__db
+        send_rcv_coroutine = self.__send_rcv(cmd, args, data)
         result = self.__loop.run_until_complete(send_rcv_coroutine)
 
         return result
 
     @asyncio.coroutine
-    def __send_rcv(self, cmd, args, arr):
+    def __send_rcv(self, cmd, args, data):
         """
         """
-        data = msgpack.packb({
-            'cmd': cmd,
-            'args': args,
-            'arr': arr
-        }, default=encode_np_array)
+        msg = msgpack.packb({
+            CMD_KW_CMD: cmd,
+            CMD_KW_ARGS: args,
+            CMD_KW_DATA: data
+        }, default=encode_np_array, use_bin_type=True)
 
-        # print("Sending {} bytes...".format(msg_len))
+        log.debug("Sending %d bytes...", len(msg))
         # Prefix message with protocol version
         self.__writer.write(struct.pack('>I', PROTOCOL_VER))
         # Prefix each message with a 4-byte length (network byte order)
-        self.__writer.write(struct.pack('>I', len(data)))
+        self.__writer.write(struct.pack('>I', len(msg)))
         # send metadata
-        self.__writer.write(data)
+        self.__writer.write(msg)
 
         # receive answer from server
-        # print("receiving answer from server...", flush=True)
         result = yield from _recv(self.__reader)
 
         return result
@@ -177,12 +210,10 @@ def connect(host='localhost', port=2222, db=None, unix_socket_path=None):
     """
     Creates and returns a database connection object.
 
-    Args:
-        host: str, hostname or IP address
-        port: int, TCP port
-        db: database name
-
-    Returns:
-        An instance of the Connection class
+    :param host: hostname or IP address.
+    :param port: TCP port.
+    :param db: database name.
+    :param unix_socket_path: Unix domain socket path.
+    :return: database connection.
     """
     return Connection(host, port, db, unix_socket_path)

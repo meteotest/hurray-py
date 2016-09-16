@@ -1,15 +1,43 @@
+# Copyright (c) 2016, Meteotest
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#    * Redistributions of source code must retain the above copyright
+#      notice, this list of conditions and the following disclaimer.
+#    * Redistributions in binary form must reproduce the above copyright
+#      notice, this list of conditions and the following disclaimer in the
+#      documentation and/or other materials provided with the distribution.
+#    * Neither the name of Meteotest nor the
+#      names of its contributors may be used to endorse or promote products
+#      derived from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 Hdf5 entities (Nodes, Groups, Datasets)
 """
 
 import os
 
-import numpy as np
+from hurraypy.protocol import CMD_KW_STATUS, RESPONSE_NODE_TYPE, NODE_TYPE_GROUP, NODE_TYPE_DATASET, \
+    RESPONSE_NODE_SHAPE, \
+    RESPONSE_NODE_DTYPE, CMD_GET_NODE, CMD_CREATE_DATASET, RESPONSE_DATA, CMD_ATTRIBUTES_SET, CMD_ATTRIBUTES_CONTAINS, \
+    RESPONSE_ATTRS_CONTAINS, CMD_ATTRIBUTES_GET, RESPONSE_ATTRS_KEYS, CMD_ATTRIBUTES_KEYS, CMD_KW_PATH, \
+    CMD_CREATE_GROUP, \
+    CMD_KW_KEY, CMD_SLICE_DATASET
+from hurraypy.status_codes import OK, GROUP_EXISTS, DATASET_EXISTS
 
-from hurraypy.const import OK, GROUP_EXISTS, DATASET_EXISTS
 
-
-class Node():
+class Node(object):
     """
     HDF5 node
     """
@@ -48,22 +76,22 @@ class Node():
 
         path = self._compose_path(key)
         args = {
-            'path': path,
+            CMD_KW_PATH: path,
         }
-        result = self._conn.send_rcv('get_node', args)
+        result = self._conn.send_rcv(CMD_GET_NODE, args)
 
-        if result[b'status'] == OK:
-            if result[b'nodetype'] == b'group':
+        if result[CMD_KW_STATUS] == OK:
+            if result[RESPONSE_NODE_TYPE] == NODE_TYPE_GROUP:
                 return Group(self._conn, path)
-            elif result[b'nodetype'] == b'dataset':
-                shape = tuple(result[b'shape'])  # compatibility with numpy
-                dtype = result[b'dtype']
+            elif result[RESPONSE_NODE_TYPE] == NODE_TYPE_DATASET:
+                shape = tuple(result[RESPONSE_NODE_SHAPE])  # compatibility with numpy
+                dtype = result[RESPONSE_NODE_DTYPE]
                 return Dataset(self._conn, path, shape=shape, dtype=dtype)
             else:
                 raise RuntimeError("server returned unknown node type")
         else:
             # TODO error handling
-            raise KeyError("could not get item")
+            raise KeyError("%d: could not get item" % result[CMD_KW_STATUS])
 
     @property
     def path(self):
@@ -96,24 +124,13 @@ class Group(Node):
         """
         group_path = self._compose_path(name)
         args = {
-            'path': group_path,
+            CMD_KW_PATH: group_path,
         }
-        result = self._conn.send_rcv('create_group', args)
-        if result[b'status'] == OK:
+        result = self._conn.send_rcv(CMD_CREATE_GROUP, args)
+        if result[CMD_KW_STATUS] == OK:
             return Group(self._conn, group_path)
-        elif result[b'status'] == GROUP_EXISTS:
+        elif result[CMD_KW_STATUS] == GROUP_EXISTS:
             raise ValueError("Group already exists")
-
-    def require_group(self, name):
-        group_path = self._compose_path(name)
-        args = {
-            'path': group_path,
-        }
-        result, _ = self._conn.send_rcv('require_group', args)
-        if result['statuscode'] == OK:
-            return Group(self._conn, group_path)
-        else:
-            raise ValueError("TODO")
 
     def create_dataset(self, name, data=None, shape=None, init_value=0,
                        dtype=None, attrs=None):
@@ -136,18 +153,18 @@ class Group(Node):
         dst_path = self._compose_path(name)
         if data is None:
             args = {
-                'path': dst_path,
+                CMD_KW_PATH: dst_path,
                 'shape': shape,
                 'init_value': init_value,
                 'dtype': dtype
             }
         else:
             args = {
-                'path': dst_path,
+                CMD_KW_PATH: dst_path,
             }
-        result = self._conn.send_rcv('create_dataset', args, data)
+        result = self._conn.send_rcv(CMD_CREATE_DATASET, args, data)
 
-        if result[b'status'] == DATASET_EXISTS:
+        if result[CMD_KW_STATUS] == DATASET_EXISTS:
             raise ValueError("dataset already exists")
         else:
             return Dataset(self._conn, dst_path, shape=shape, dtype=dtype)
@@ -196,13 +213,13 @@ class Dataset(Node):
         # TODO check if dtype corresponds to self.dtype (dataset may have been
         # overwritten in the meantime)
         args = {
-            'path': self.path,
-            'key': key
+            CMD_KW_PATH: self.path,
+            CMD_KW_KEY: key
         }
-        result = self._conn.send_rcv('slice_dataset', args)
+        result = self._conn.send_rcv(CMD_SLICE_DATASET, args)
 
-        if result[b'status'] == OK:
-            return result[b'data']
+        if result[CMD_KW_STATUS] == OK:
+            return result[RESPONSE_DATA]
         else:
             # TODO error handling
             raise IndexError("could not get data")
@@ -212,21 +229,14 @@ class Dataset(Node):
         Broadcasting for datasets. Example: mydataset[0,:] = np.arange(100)
         """
         args = {
-            'path': self.path,
-            'key': key,  # will be json encoded
+            CMD_KW_PATH: self.path,
+            CMD_KW_KEY: key,
         }
-        if isinstance(value, np.ndarray):
-            arr = value
-        else:
-            arr = None
-            args['value'] = value
-        result = self._conn.send_rcv('broadcast_dataset', args, arr)
+        result = self._conn.send_rcv('broadcast_dataset', args, value)
 
-        if result[b'status'] == OK:
-            return result[b'data']
-        else:
+        if result[CMD_KW_STATUS] != OK:
             # TODO error handling
-            raise ValueError("operation failed: {}".format(result[b'status']))
+            raise ValueError("operation failed: {}".format(result[CMD_KW_STATUS]))
 
     @property
     def shape(self):
@@ -267,24 +277,24 @@ class AttributeManager(object):
         Returns attribute keys (list)
         """
         args = {
-            'path': self.__path,
+            CMD_KW_PATH: self.__path,
         }
-        result = self.__conn.send_rcv('attrs_keys', args)
+        result = self.__conn.send_rcv(CMD_ATTRIBUTES_KEYS, args)
 
-        if result[b'status'] == OK:
-            return result[b'keys']
+        if result[CMD_KW_STATUS] == OK:
+            return result[RESPONSE_ATTRS_KEYS]
         else:
             # TODO error handling
             raise RuntimeError("Error")
 
     def __contains__(self, key):
         args = {
-            'path': self.__path,
-            'key': key,
+            CMD_KW_PATH: self.__path,
+            CMD_KW_KEY: key,
         }
-        result = self.__conn.send_rcv('attrs_contains', args)
-        if result[b'status'] == OK:
-            return result[b'contains']
+        result = self.__conn.send_rcv(CMD_ATTRIBUTES_CONTAINS, args)
+        if result[CMD_KW_STATUS] == OK:
+            return result[RESPONSE_ATTRS_CONTAINS]
         else:
             raise RuntimeError("Error")
 
@@ -296,13 +306,13 @@ class AttributeManager(object):
             a primitive object (string, number) or a numpy array.
         """
         args = {
-            'path': self.__path,
-            'key': key,
+            CMD_KW_PATH: self.__path,
+            CMD_KW_KEY: key,
         }
-        result = self.__conn.send_rcv('attrs_getitem', args)
-        arr = result[b'data']
-        if result[b'status'] == OK:
-            return arr if arr is not None else result['value']
+        result = self.__conn.send_rcv(CMD_ATTRIBUTES_GET, args)
+        arr = result[RESPONSE_DATA]
+        if result[CMD_KW_STATUS] == OK:
+            return arr if arr is not None else result[RESPONSE_DATA]
         else:
             # TODO error handling
             raise RuntimeError("Error")
@@ -313,17 +323,13 @@ class AttributeManager(object):
         or numpy array).
         """
         args = {
-            'path': self.__path,
-            'key': key,
+            CMD_KW_PATH: self.__path,
+            CMD_KW_KEY: key,
         }
-        if isinstance(value, np.ndarray):
-            arr = value
-        else:
-            arr = None
-            args['value'] = value
-        result = self.__conn.send_rcv('attrs_setitem', args, arr)
 
-        if result[b'status'] == OK:
+        result = self.__conn.send_rcv(CMD_ATTRIBUTES_SET, args, value)
+
+        if result[CMD_KW_STATUS] == OK:
             pass
         else:
             # TODO error handling
@@ -341,17 +347,16 @@ class AttributeManager(object):
             defaultvalue: default value to be returned if key is missing
         """
         args = {
-            'path': self.__path,
-            'key': key,
+            CMD_KW_PATH: self.__path,
+            CMD_KW_KEY: key,
             'default': defaultvalue,
         }
         result = self.__conn.send_rcv('attrs_get', args)
-        arr = result[b'data']
-        if result[b'status'] == OK:
+        arr = result[RESPONSE_DATA]
+        if result[CMD_KW_STATUS] == OK:
             return arr if arr is not None else result['value']
         else:
             # TODO error handling
-            print(result)
             raise RuntimeError("Error")
 
     def to_dict(self):

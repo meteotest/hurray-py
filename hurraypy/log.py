@@ -22,21 +22,7 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-"""The hurray client."""
-
-from __future__ import absolute_import, division, print_function, with_statement
 
 import logging
 
-from hurraypy.client import connect
-
-from .version import __version__
-
-try:  # Python 2.7+
-    from logging import NullHandler
-except ImportError:
-    class NullHandler(logging.Handler):
-        def emit(self, record):
-            pass
-
-logging.getLogger('hurraypy').addHandler(NullHandler())
+log = logging.getLogger('hurraypy')

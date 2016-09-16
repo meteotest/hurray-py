@@ -22,21 +22,30 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-"""The hurray client."""
 
-from __future__ import absolute_import, division, print_function, with_statement
+# 1xx: Success
+OK = 100
+CREATED = 101
+UPDATED = 102
 
-import logging
+# 2xx: Message error
+UNKNOWN_COMMAND = 200
+MISSING_ARGUMENT = 201
+INVALID_ARGUMENT = 202
+MISSING_DATA = 203
 
-from hurraypy.client import connect
+# 3xx: Database Error
+FILE_EXISTS = 300
+FILE_NOT_FOUND = 301
 
-from .version import __version__
+# 4xx: Node Error
+GROUP_EXISTS = 400
+DATASET_EXISTS = 401
+NODE_NOT_FOUND = 402
+VALUE_ERROR = 403
+TYPE_ERROR = 404
+KEY_ERROR = 405
 
-try:  # Python 2.7+
-    from logging import NullHandler
-except ImportError:
-    class NullHandler(logging.Handler):
-        def emit(self, record):
-            pass
-
-logging.getLogger('hurraypy').addHandler(NullHandler())
+# 5xx: Server Error
+INTERNAL_SERVER_ERROR = 500
+NOT_IMPLEMENTED = 501
