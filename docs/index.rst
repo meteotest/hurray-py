@@ -1,10 +1,13 @@
-.. Hurray-Py documentation master file, created by
-   sphinx-quickstart on Tue Aug 16 10:52:22 2016.
+.. hurraypy documentation master file, created by
+   sphinx-quickstart on Fri Sep 16 14:03:28 2016.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Hurray-Py's documentation!
-=====================================
+Welcome to hurraypy's documentation!
+====================================
+
+
+.. module:: hurraypy
 
 Contents:
 
@@ -13,6 +16,14 @@ Contents:
 
    tutorial
 
+Hurray connection
+
+.. autofunction:: connect
+
+Nodes
+
+.. automodule:: hurraypy.nodes
+   :inherited-members:
 
 
 Indices and tables

@@ -1,6 +1,10 @@
 Tutorial
 ========
 
+.. image:: https://travis-ci.org/meteotest/hurray-py.svg?branch=master
+   :alt: Build Status
+   :target: https://travis-ci.org/meteotest/hurray-py
+
 hurray-py has an API very similar to that of the h5py library.
 
 For this tutorial, make sure you have a hurray server running on ``localhost``
