@@ -28,13 +28,14 @@ Hdf5 entities (Nodes, Groups, Datasets)
 
 import os
 
-from hurraypy.protocol import CMD_KW_STATUS, RESPONSE_NODE_TYPE, NODE_TYPE_GROUP, NODE_TYPE_DATASET, \
+from hurraypy.exceptions import NodeError
+from hurraypy.protocol import RESPONSE_NODE_TYPE, NODE_TYPE_GROUP, NODE_TYPE_DATASET, \
     RESPONSE_NODE_SHAPE, \
     RESPONSE_NODE_DTYPE, CMD_GET_NODE, CMD_CREATE_DATASET, RESPONSE_DATA, CMD_ATTRIBUTES_SET, CMD_ATTRIBUTES_CONTAINS, \
     RESPONSE_ATTRS_CONTAINS, CMD_ATTRIBUTES_GET, RESPONSE_ATTRS_KEYS, CMD_ATTRIBUTES_KEYS, CMD_KW_PATH, \
     CMD_CREATE_GROUP, \
-    CMD_KW_KEY, CMD_SLICE_DATASET
-from hurraypy.status_codes import OK, GROUP_EXISTS, DATASET_EXISTS
+    CMD_KW_KEY, CMD_SLICE_DATASET, CMD_BROADCAST_DATASET
+from hurraypy.status_codes import KEY_ERROR
 
 
 class Node(object):
@@ -70,28 +71,22 @@ class Node(object):
             An instance of Node (or of a subclass).
 
         Raises:
-            KeyError if object does not exist.
+            NodeError if object does not exist.
         """
-        # note that class Dataset overrides this method
-
         path = self._compose_path(key)
         args = {
             CMD_KW_PATH: path,
         }
         result = self._conn.send_rcv(CMD_GET_NODE, args)
 
-        if result[CMD_KW_STATUS] == OK:
-            if result[RESPONSE_NODE_TYPE] == NODE_TYPE_GROUP:
-                return Group(self._conn, path)
-            elif result[RESPONSE_NODE_TYPE] == NODE_TYPE_DATASET:
-                shape = tuple(result[RESPONSE_NODE_SHAPE])  # compatibility with numpy
-                dtype = result[RESPONSE_NODE_DTYPE]
-                return Dataset(self._conn, path, shape=shape, dtype=dtype)
-            else:
-                raise RuntimeError("server returned unknown node type")
+        if result[RESPONSE_NODE_TYPE] == NODE_TYPE_GROUP:
+            return Group(self._conn, path)
+        elif result[RESPONSE_NODE_TYPE] == NODE_TYPE_DATASET:
+            shape = tuple(result[RESPONSE_NODE_SHAPE])  # compatibility with numpy
+            dtype = result[RESPONSE_NODE_DTYPE]
+            return Dataset(self._conn, path, shape=shape, dtype=dtype)
         else:
-            # TODO error handling
-            raise KeyError("%d: could not get item" % result[CMD_KW_STATUS])
+            raise RuntimeError("server returned unknown node type")
 
     @property
     def path(self):
@@ -126,11 +121,8 @@ class Group(Node):
         args = {
             CMD_KW_PATH: group_path,
         }
-        result = self._conn.send_rcv(CMD_CREATE_GROUP, args)
-        if result[CMD_KW_STATUS] == OK:
-            return Group(self._conn, group_path)
-        elif result[CMD_KW_STATUS] == GROUP_EXISTS:
-            raise ValueError("Group already exists")
+        self._conn.send_rcv(CMD_CREATE_GROUP, args)
+        return Group(self._conn, group_path)
 
     def create_dataset(self, name, data=None, shape=None, init_value=0,
                        dtype=None, attrs=None):
@@ -162,12 +154,8 @@ class Group(Node):
             args = {
                 CMD_KW_PATH: dst_path,
             }
-        result = self._conn.send_rcv(CMD_CREATE_DATASET, args, data)
-
-        if result[CMD_KW_STATUS] == DATASET_EXISTS:
-            raise ValueError("dataset already exists")
-        else:
-            return Dataset(self._conn, dst_path, shape=shape, dtype=dtype)
+        self._conn.send_rcv(CMD_CREATE_DATASET, args, data)
+        return Dataset(self._conn, dst_path, shape=shape, dtype=dtype)
 
     def require_dataset(self, **kwargs):
         raise NotImplementedError()
@@ -217,12 +205,7 @@ class Dataset(Node):
             CMD_KW_KEY: key
         }
         result = self._conn.send_rcv(CMD_SLICE_DATASET, args)
-
-        if result[CMD_KW_STATUS] == OK:
-            return result[RESPONSE_DATA]
-        else:
-            # TODO error handling
-            raise IndexError("could not get data")
+        return result[RESPONSE_DATA]
 
     def __setitem__(self, key, value):
         """
@@ -232,11 +215,7 @@ class Dataset(Node):
             CMD_KW_PATH: self.path,
             CMD_KW_KEY: key,
         }
-        result = self._conn.send_rcv('broadcast_dataset', args, value)
-
-        if result[CMD_KW_STATUS] != OK:
-            # TODO error handling
-            raise ValueError("operation failed: {}".format(result[CMD_KW_STATUS]))
+        self._conn.send_rcv(CMD_BROADCAST_DATASET, args, value)
 
     @property
     def shape(self):
@@ -280,12 +259,7 @@ class AttributeManager(object):
             CMD_KW_PATH: self.__path,
         }
         result = self.__conn.send_rcv(CMD_ATTRIBUTES_KEYS, args)
-
-        if result[CMD_KW_STATUS] == OK:
-            return result[RESPONSE_ATTRS_KEYS]
-        else:
-            # TODO error handling
-            raise RuntimeError("Error")
+        return result[RESPONSE_ATTRS_KEYS]
 
     def __contains__(self, key):
         args = {
@@ -293,10 +267,7 @@ class AttributeManager(object):
             CMD_KW_KEY: key,
         }
         result = self.__conn.send_rcv(CMD_ATTRIBUTES_CONTAINS, args)
-        if result[CMD_KW_STATUS] == OK:
-            return result[RESPONSE_ATTRS_CONTAINS]
-        else:
-            raise RuntimeError("Error")
+        return result[RESPONSE_ATTRS_CONTAINS]
 
     def __getitem__(self, key):
         """
@@ -310,12 +281,7 @@ class AttributeManager(object):
             CMD_KW_KEY: key,
         }
         result = self.__conn.send_rcv(CMD_ATTRIBUTES_GET, args)
-        arr = result[RESPONSE_DATA]
-        if result[CMD_KW_STATUS] == OK:
-            return arr if arr is not None else result[RESPONSE_DATA]
-        else:
-            # TODO error handling
-            raise RuntimeError("Error")
+        return result[RESPONSE_DATA]
 
     def __setitem__(self, key, value):
         """
@@ -327,13 +293,7 @@ class AttributeManager(object):
             CMD_KW_KEY: key,
         }
 
-        result = self.__conn.send_rcv(CMD_ATTRIBUTES_SET, args, value)
-
-        if result[CMD_KW_STATUS] == OK:
-            pass
-        else:
-            # TODO error handling
-            raise RuntimeError("Error")
+        self.__conn.send_rcv(CMD_ATTRIBUTES_SET, args, value)
 
     def __delitem__(self, key):
         raise NotImplementedError()
@@ -349,15 +309,17 @@ class AttributeManager(object):
         args = {
             CMD_KW_PATH: self.__path,
             CMD_KW_KEY: key,
-            'default': defaultvalue,
         }
-        result = self.__conn.send_rcv('attrs_get', args)
-        arr = result[RESPONSE_DATA]
-        if result[CMD_KW_STATUS] == OK:
-            return arr if arr is not None else result['value']
-        else:
-            # TODO error handling
-            raise RuntimeError("Error")
+
+        try:
+            result = self.__conn.send_rcv(CMD_ATTRIBUTES_GET, args)[RESPONSE_DATA]
+        except NodeError as ne:
+            if ne.status == KEY_ERROR:
+                result = defaultvalue
+            else:
+                raise
+
+        return result
 
     def to_dict(self):
         """

@@ -30,12 +30,13 @@ import asyncio
 import struct
 
 import msgpack
+
+from hurraypy.exceptions import MessageError, DatabaseError, NodeError, ServerError
 from hurraypy.log import log
 from hurraypy.msgpack_ext import decode_np_array, encode_np_array
 from hurraypy.nodes import Group
 from hurraypy.protocol import CMD_CREATE_DATABASE, CMD_KW_STATUS, CMD_KW_DB, CMD_CONNECT_DATABASE, CMD_KW_CMD, \
     CMD_KW_ARGS, CMD_KW_DATA, MSG_LEN, PROTOCOL_VER
-from hurraypy.status_codes import FILE_EXISTS, FILE_NOT_FOUND
 
 
 def _recv(reader):
@@ -81,10 +82,13 @@ class Connection:
         self.__host = host
         self.__port = port
         self.__db = db
+        self.__reader, self.__writer = self._connect(host, port, unix_socket_path)
+
+    def _connect(self, host, port, unix_socket_path):
         if unix_socket_path:
-            self.__reader, self.__writer = self.__loop.run_until_complete(self.__connect_socket(unix_socket_path))
+            return self.__loop.run_until_complete(self.__connect_socket(unix_socket_path))
         else:
-            self.__reader, self.__writer = self.__loop.run_until_complete(self.__connect_tcp(host, port))
+            return self.__loop.run_until_complete(self.__connect_tcp(host, port))
 
     @asyncio.coroutine
     def __connect_tcp(self, host, port):
@@ -128,12 +132,9 @@ class Connection:
             None
 
         Raises:
-            OSError if db already exists
+            DatabaseError if db already exists
         """
-        result = self.send_rcv(CMD_CREATE_DATABASE, {CMD_KW_DB: name})
-
-        if result[CMD_KW_STATUS] == FILE_EXISTS:
-            raise OSError('db exists')
+        self.send_rcv(CMD_CREATE_DATABASE, {CMD_KW_DB: name})
 
     def connect_db(self, dbname):
         """
@@ -146,34 +147,12 @@ class Connection:
             An instance of the Group class
 
         Raises:
-            ValueError if ``dbname`` does not exist
+            DatabaseError if ``dbname`` does not exist
         """
-        result = self.send_rcv(CMD_CONNECT_DATABASE, {CMD_KW_DB: dbname})
+        self.send_rcv(CMD_CONNECT_DATABASE, {CMD_KW_DB: dbname})
 
-        if result[CMD_KW_STATUS] == FILE_NOT_FOUND:
-            raise ValueError('db not found')
-        else:
-            self.__db = dbname
-            return Group(self, '/')
-
-    def send_rcv(self, cmd, args, data=None):
-        """
-        Process a request to the server
-
-        Args:
-            cmd: command
-            args: command arguments
-            arr: numpy array or None
-
-        Returns:
-            Tuple (result, array)
-        """
-        if CMD_KW_DB not in args:
-            args[CMD_KW_DB] = self.__db
-        send_rcv_coroutine = self.__send_rcv(cmd, args, data)
-        result = self.__loop.run_until_complete(send_rcv_coroutine)
-
-        return result
+        self.__db = dbname
+        return Group(self, '/')
 
     @asyncio.coroutine
     def __send_rcv(self, cmd, args, data):
@@ -198,6 +177,40 @@ class Connection:
 
         return result
 
+    def _run(self, cmd, args, data):
+        send_rcv_coroutine = self.__send_rcv(cmd, args, data)
+        return self.__loop.run_until_complete(send_rcv_coroutine)
+
+    def send_rcv(self, cmd, args, data=None):
+        """
+        Process a request to the server
+
+        Args:
+            cmd: command
+            args: command arguments
+            data: numpy array or None
+
+        Returns:
+            Tuple (result, array)
+        """
+        if CMD_KW_DB not in args:
+            args[CMD_KW_DB] = self.__db
+        result = self._run(cmd, args, data)
+        status = result[CMD_KW_STATUS]
+
+        # Handle errors
+        if status >= 200:
+            if 200 <= status < 300:
+                raise MessageError(status)
+            if 300 <= status < 400:
+                raise DatabaseError(status)
+            if 400 <= status < 500:
+                raise NodeError(status)
+            if 500 <= status < 600:
+                raise ServerError(status)
+
+        return result
+    
     @property
     def db(self):
         """
