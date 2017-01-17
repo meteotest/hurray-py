@@ -26,11 +26,11 @@ class IntegrationTest(unittest.TestCase):
         db = conn.connect_db(db_name)
 
         group_path = '/mygrp'
-
         db.create_group(group_path)
         grp = db[group_path]
 
         self.assertEqual(grp.path, group_path)
+        self.assertEqual(db.keys(), ("mygrp",))
 
         array_name = 'myarray'
         array_path = group_path + '/' + array_name

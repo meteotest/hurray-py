@@ -37,7 +37,8 @@ from hurraypy.protocol import (RESPONSE_NODE_TYPE, NODE_TYPE_GROUP,
                                RESPONSE_ATTRS_CONTAINS, CMD_ATTRIBUTES_GET,
                                RESPONSE_ATTRS_KEYS, CMD_ATTRIBUTES_KEYS,
                                CMD_KW_PATH, CMD_CREATE_GROUP, CMD_KW_KEY,
-                               CMD_SLICE_DATASET, CMD_BROADCAST_DATASET)
+                               CMD_SLICE_DATASET, CMD_BROADCAST_DATASET,
+                               CMD_GET_KEYS, RESPONSE_NODE_KEYS)
 from hurraypy.status_codes import KEY_ERROR
 
 
@@ -165,7 +166,13 @@ class Group(Node):
         raise NotImplementedError()
 
     def keys(self):
-        raise NotImplementedError()
+        # raise NotImplementedError()
+        args = {
+            CMD_KW_PATH: self._path,
+        }
+        result = self._conn.send_rcv(CMD_GET_KEYS, args)
+
+        return result[RESPONSE_NODE_KEYS]
 
     def items(self):
         """
