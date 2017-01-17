@@ -12,10 +12,10 @@
 #      names of its contributors may be used to endorse or promote products
 #      derived from this software without specific prior written permission.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
 # DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 # (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 # LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -31,12 +31,14 @@ import struct
 
 import msgpack
 
-from hurraypy.exceptions import MessageError, DatabaseError, NodeError, ServerError
+from hurraypy.exceptions import (MessageError, DatabaseError, NodeError,
+                                 ServerError)
 from hurraypy.log import log
 from hurraypy.msgpack_ext import decode_np_array, encode_np_array
 from hurraypy.nodes import Group
-from hurraypy.protocol import CMD_CREATE_DATABASE, CMD_KW_STATUS, CMD_KW_DB, CMD_CONNECT_DATABASE, CMD_KW_CMD, \
-    CMD_KW_ARGS, CMD_KW_DATA, MSG_LEN, PROTOCOL_VER
+from hurraypy.protocol import (CMD_CREATE_DATABASE, CMD_KW_STATUS, CMD_KW_DB,
+                               CMD_CONNECT_DATABASE, CMD_KW_CMD, CMD_KW_ARGS,
+                               CMD_KW_DATA, MSG_LEN, PROTOCOL_VER)
 
 
 def _recv(reader):
@@ -57,12 +59,14 @@ def _recv(reader):
     # Read message length (4 bytes) and unpack it into an integer
     raw_msg_length = yield from reader.readexactly(MSG_LEN)
     msg_length = struct.unpack('>I', raw_msg_length)[0]
-    log.debug("Handle request (Protocol: v%d, Msg size: %d)", protocol_ver, msg_length)
+    log.debug("Handle request (Protocol: v%d, Msg size: %d)",
+              protocol_ver, msg_length)
 
     msg_data = yield from reader.readexactly(msg_length)
 
     # decode message
-    return msgpack.unpackb(msg_data, object_hook=decode_np_array, use_list=False, encoding='utf-8')
+    return msgpack.unpackb(msg_data, object_hook=decode_np_array,
+                           use_list=False, encoding='utf-8')
 
 
 class Connection:
@@ -82,13 +86,15 @@ class Connection:
         self.__host = host
         self.__port = port
         self.__db = db
-        self.__reader, self.__writer = self._connect(host, port, unix_socket_path)
+        self.__reader, self.__writer = self._connect(host, port,
+                                                     unix_socket_path)
 
     def _connect(self, host, port, unix_socket_path):
         if unix_socket_path:
-            return self.__loop.run_until_complete(self.__connect_socket(unix_socket_path))
+            conn = self.__connect_socket(unix_socket_path)
         else:
-            return self.__loop.run_until_complete(self.__connect_tcp(host, port))
+            conn = self.__connect_tcp(host, port)
+        return self.__loop.run_until_complete(conn)
 
     @asyncio.coroutine
     def __connect_tcp(self, host, port):
@@ -96,20 +102,21 @@ class Connection:
         Create TCP connection
         :param host:
         :param port:
-        :return: The reader returned is a StreamReader instance; the writer is a StreamWriter instance.
+        :return: The reader returned is a StreamReader instance; the writer is
+        a StreamWriter instance.
         """
         reader, writer = yield from asyncio.open_connection(host, port)
         return reader, writer
 
     @asyncio.coroutine
-    def __connect_socket(self, unix_socket_path):
+    def __connect_socket(self, socket_path):
         """
         Create UNIX Domain Sockets connection
-        :param host:
-        :param port:
-        :return: The reader returned is a StreamReader instance; the writer is a StreamWriter instance.
+        :param socket_path:
+        :return: The reader returned is a StreamReader instance; the writer is
+        a StreamWriter instance.
         """
-        reader, writer = yield from asyncio.open_unix_connection(unix_socket_path)
+        reader, writer = yield from asyncio.open_unix_connection(socket_path)
         return reader, writer
 
     def __enter__(self):
@@ -210,7 +217,7 @@ class Connection:
                 raise ServerError(status)
 
         return result
-    
+
     @property
     def db(self):
         """

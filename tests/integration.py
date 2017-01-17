@@ -9,13 +9,15 @@ import hurraypy as hp
 
 
 def random_name(l):
-    return ''.join(random.SystemRandom().choice(string.ascii_lowercase) for _ in range(l))
+    return ''.join(random.SystemRandom().choice(string.ascii_lowercase)
+                   for _ in range(l))
 
 
 class IntegrationTest(unittest.TestCase):
     """
-    Make sure you have a hurray server running at localhost:2222 or a socket at /tmp/hurray.socket
-    You probably want to clean the database files after testing
+    Make sure you have a hurray server running at localhost:2222 or a socket at
+    /tmp/hurray.socket You probably want to clean the database files after
+    testing
     """
 
     def operations(self, conn):

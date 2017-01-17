@@ -12,10 +12,10 @@
 #      names of its contributors may be used to endorse or promote products
 #      derived from this software without specific prior written permission.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
 # DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 # (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 # LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -29,12 +29,15 @@ Hdf5 entities (Nodes, Groups, Datasets)
 import os
 
 from hurraypy.exceptions import NodeError
-from hurraypy.protocol import RESPONSE_NODE_TYPE, NODE_TYPE_GROUP, NODE_TYPE_DATASET, \
-    RESPONSE_NODE_SHAPE, \
-    RESPONSE_NODE_DTYPE, CMD_GET_NODE, CMD_CREATE_DATASET, RESPONSE_DATA, CMD_ATTRIBUTES_SET, CMD_ATTRIBUTES_CONTAINS, \
-    RESPONSE_ATTRS_CONTAINS, CMD_ATTRIBUTES_GET, RESPONSE_ATTRS_KEYS, CMD_ATTRIBUTES_KEYS, CMD_KW_PATH, \
-    CMD_CREATE_GROUP, \
-    CMD_KW_KEY, CMD_SLICE_DATASET, CMD_BROADCAST_DATASET
+from hurraypy.protocol import (RESPONSE_NODE_TYPE, NODE_TYPE_GROUP,
+                               NODE_TYPE_DATASET, RESPONSE_NODE_SHAPE,
+                               RESPONSE_NODE_DTYPE, CMD_GET_NODE,
+                               CMD_CREATE_DATASET, RESPONSE_DATA,
+                               CMD_ATTRIBUTES_SET, CMD_ATTRIBUTES_CONTAINS,
+                               RESPONSE_ATTRS_CONTAINS, CMD_ATTRIBUTES_GET,
+                               RESPONSE_ATTRS_KEYS, CMD_ATTRIBUTES_KEYS,
+                               CMD_KW_PATH, CMD_CREATE_GROUP, CMD_KW_KEY,
+                               CMD_SLICE_DATASET, CMD_BROADCAST_DATASET)
 from hurraypy.status_codes import KEY_ERROR
 
 
@@ -82,7 +85,8 @@ class Node(object):
         if result[RESPONSE_NODE_TYPE] == NODE_TYPE_GROUP:
             return Group(self._conn, path)
         elif result[RESPONSE_NODE_TYPE] == NODE_TYPE_DATASET:
-            shape = tuple(result[RESPONSE_NODE_SHAPE])  # compatibility with numpy
+            # compatibility with numpy
+            shape = tuple(result[RESPONSE_NODE_SHAPE])
             dtype = result[RESPONSE_NODE_DTYPE]
             return Dataset(self._conn, path, shape=shape, dtype=dtype)
         else:
@@ -312,7 +316,8 @@ class AttributeManager(object):
         }
 
         try:
-            result = self.__conn.send_rcv(CMD_ATTRIBUTES_GET, args)[RESPONSE_DATA]
+            response = self.__conn.send_rcv(CMD_ATTRIBUTES_GET, args)
+            result = response[RESPONSE_DATA]
         except NodeError as ne:
             if ne.status == KEY_ERROR:
                 result = defaultvalue

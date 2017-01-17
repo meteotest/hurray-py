@@ -7,15 +7,17 @@ from numpy.testing import assert_array_equal
 import hurraypy as hp
 from hurraypy.exceptions import DatabaseError, MessageError, NodeError
 from hurraypy.nodes import Group, Dataset
-from hurraypy.status_codes import INVALID_ARGUMENT, FILE_EXISTS, FILE_NOT_FOUND, GROUP_EXISTS, DATASET_EXISTS, \
-    NODE_NOT_FOUND, VALUE_ERROR, TYPE_ERROR, KEY_ERROR
+from hurraypy.status_codes import (INVALID_ARGUMENT, FILE_EXISTS,
+                                   FILE_NOT_FOUND, GROUP_EXISTS,
+                                   DATASET_EXISTS, NODE_NOT_FOUND, VALUE_ERROR,
+                                   TYPE_ERROR, KEY_ERROR)
 from tests.server_mock import MockServer
 
 
 def _connect(*args):
     """
-    TCP or Unix domain socket mock. Returns nothing instead of a socket reader and writer as the
-    send_rcv call is mocked
+    TCP or Unix domain socket mock. Returns nothing instead of a socket reader
+    and writer as the send_rcv call is mocked
     """
     return None, None
 
@@ -24,8 +26,10 @@ class NodeTestCase(unittest.TestCase):
     def setUp(self):
         self.ms = MockServer()
 
-        self.run = patch('hurraypy.client.Connection._run', side_effect=self.ms.run)
-        self.connect = patch('hurraypy.client.Connection._connect', side_effect=_connect)
+        self.run = patch('hurraypy.client.Connection._run',
+                         side_effect=self.ms.run)
+        self.connect = patch('hurraypy.client.Connection._connect',
+                             side_effect=_connect)
         self.run_mock = self.run.start()
         self.connect_mock = self.connect.start()
 
@@ -38,7 +42,8 @@ class NodeTestCase(unittest.TestCase):
     def test_create_connect(self):
         db_name = 'test.h5'
         self.conn.create_db(db_name)
-        self.run_mock.assert_called_once_with('create_db', {'db': db_name}, None)
+        self.run_mock.assert_called_once_with('create_db', {'db': db_name},
+                                              None)
 
         with self.assertRaises(DatabaseError) as context:
             self.conn.create_db(db_name)
@@ -66,7 +71,9 @@ class NodeTestCase(unittest.TestCase):
         # Create group
         db.create_group(group_path)
 
-        self.run_mock.assert_called_with('create_group', {'db': db_name, 'path': group_path}, None)
+        self.run_mock.assert_called_with('create_group',
+                                         {'db': db_name, 'path': group_path},
+                                         None)
 
         # Invalid group path
         with self.assertRaises(NodeError) as context:
@@ -77,7 +84,9 @@ class NodeTestCase(unittest.TestCase):
         # Get group
         grp = db[group_path]
 
-        self.run_mock.assert_called_with('get_node', {'db': db_name, 'path': group_path}, None)
+        self.run_mock.assert_called_with('get_node',
+                                         {'db': db_name, 'path': group_path},
+                                         None)
 
         self.assertIsInstance(grp, Group)
         self.assertEqual(grp._conn.db, db_name)
@@ -86,7 +95,10 @@ class NodeTestCase(unittest.TestCase):
         # Create relative sub group
         sub_path = 'sub'
         grp.create_group(sub_path)
-        self.run_mock.assert_called_with('create_group', {'db': db_name, 'path': group_path + '/' + sub_path}, None)
+        self.run_mock.assert_called_with('create_group',
+                                         {'db': db_name, 'path': group_path
+                                          + '/' + sub_path},
+                                         None)
 
         # Try to create group at same path
         with self.assertRaises(NodeError) as context:
@@ -105,12 +117,17 @@ class NodeTestCase(unittest.TestCase):
 
         # Set attribute
         grp.attrs[attr_key] = 'value'
-        self.run_mock.assert_called_with('attrs_setitem', {'key': attr_key, 'db': db_name, 'path': group_path},
+        self.run_mock.assert_called_with('attrs_setitem',
+                                         {'key': attr_key, 'db': db_name,
+                                          'path': group_path},
                                          attr_value)
 
         # Get attribute
         val = grp.attrs[attr_key]
-        self.run_mock.assert_called_with('attrs_getitem', {'key': attr_key, 'db': db_name, 'path': group_path}, None)
+        self.run_mock.assert_called_with('attrs_getitem',
+                                         {'key': attr_key, 'db': db_name,
+                                          'path': group_path},
+                                         None)
         self.assertEqual(val, attr_value)
 
         # Get non-existing attribute
@@ -121,13 +138,17 @@ class NodeTestCase(unittest.TestCase):
 
         # Get attribute with default val
         val = grp.attrs.get(attr_key, None)
-        self.run_mock.assert_called_with('attrs_getitem', {'key': attr_key, 'db': db_name, 'path': group_path}, None)
+        self.run_mock.assert_called_with('attrs_getitem',
+                                         {'key': attr_key, 'db': db_name,
+                                          'path': group_path}, None)
         self.assertEqual(val, attr_value)
 
         # Get attribute with default val
         default = 'default'
         val = grp.attrs.get('invalid', default)
-        self.run_mock.assert_called_with('attrs_getitem', {'key': 'invalid', 'db': db_name, 'path': group_path}, None)
+        self.run_mock.assert_called_with('attrs_getitem',
+                                         {'key': 'invalid', 'db': db_name,
+                                          'path': group_path}, None)
         self.assertEqual(val, default)
 
     def test_dataset(self):
@@ -141,7 +162,9 @@ class NodeTestCase(unittest.TestCase):
         # Create group
         db.create_dataset(data_path, data=data)
 
-        self.run_mock.assert_called_with('create_dataset', {'db': db_name, 'path': data_path}, data)
+        self.run_mock.assert_called_with('create_dataset',
+                                         {'db': db_name, 'path': data_path},
+                                         data)
 
         # Invalid dataset path
         with self.assertRaises(NodeError) as context:
@@ -154,12 +177,16 @@ class NodeTestCase(unittest.TestCase):
         self.assertIsInstance(dataset, Dataset)
         self.assertEqual(dataset._conn.db, db_name)
         self.assertEqual(dataset._path, data_path)
-        self.run_mock.assert_called_with('get_node', {'db': db_name, 'path': data_path}, None)
+        self.run_mock.assert_called_with('get_node',
+                                         {'db': db_name, 'path': data_path},
+                                         None)
 
         # Slice data
         assert_array_equal(dataset[:], data)
         self.run_mock.assert_called_with('slice_dataset',
-                                         {'db': db_name, 'path': data_path, 'key': slice(None, None, None)}, None)
+                                         {'db': db_name, 'path': data_path,
+                                          'key': slice(None, None, None)},
+                                         None)
 
         # Try to create dataset at same path
         with self.assertRaises(NodeError) as context:
@@ -172,7 +199,9 @@ class NodeTestCase(unittest.TestCase):
         dataset[0, :] = x
 
         self.run_mock.assert_called_with('broadcast_dataset',
-                                         {'db': db_name, 'path': data_path, 'key': (0, slice(None, None, None))}, x)
+                                         {'db': db_name, 'path': data_path,
+                                          'key': (0, slice(None, None, None))},
+                                         x)
         assert_array_equal(np.array([x, data[1]]), dataset[:])
 
         # Wrong data
@@ -198,12 +227,17 @@ class NodeTestCase(unittest.TestCase):
 
         # Set attribute
         dataset.attrs[attr_key] = 'value'
-        self.run_mock.assert_called_with('attrs_setitem', {'key': attr_key, 'db': db_name, 'path': data_path},
+        self.run_mock.assert_called_with('attrs_setitem',
+                                         {'key': attr_key, 'db': db_name,
+                                          'path': data_path},
                                          attr_value)
 
         # Get attribute
         val = dataset.attrs[attr_key]
-        self.run_mock.assert_called_with('attrs_getitem', {'key': attr_key, 'db': db_name, 'path': data_path}, None)
+        self.run_mock.assert_called_with('attrs_getitem',
+                                         {'key': attr_key, 'db': db_name,
+                                          'path': data_path},
+                                         None)
         self.assertEqual(val, attr_value)
 
         # Get non-existing attribute
@@ -214,11 +248,16 @@ class NodeTestCase(unittest.TestCase):
 
         # Get attribute with default val
         val = dataset.attrs.get(attr_key, None)
-        self.run_mock.assert_called_with('attrs_getitem', {'key': attr_key, 'db': db_name, 'path': data_path}, None)
+        self.run_mock.assert_called_with('attrs_getitem',
+                                         {'key': attr_key, 'db': db_name,
+                                          'path': data_path}, None)
         self.assertEqual(val, attr_value)
 
         # Get attribute with default val
         default = 'default'
         val = dataset.attrs.get('invalid', default)
-        self.run_mock.assert_called_with('attrs_getitem', {'key': 'invalid', 'db': db_name, 'path': data_path}, None)
+        self.run_mock.assert_called_with('attrs_getitem',
+                                         {'key': 'invalid', 'db': db_name,
+                                          'path': data_path},
+                                         None)
         self.assertEqual(val, default)

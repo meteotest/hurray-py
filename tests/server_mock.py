@@ -1,11 +1,20 @@
-from hurraypy.protocol import CMD_CREATE_DATABASE, CMD_CONNECT_DATABASE, CMD_CREATE_GROUP, CMD_CREATE_DATASET, \
-    CMD_GET_NODE, CMD_SLICE_DATASET, CMD_BROADCAST_DATASET, CMD_ATTRIBUTES_GET, CMD_ATTRIBUTES_SET, \
-    CMD_ATTRIBUTES_CONTAINS, CMD_ATTRIBUTES_KEYS, CMD_KW_CMD, CMD_KW_ARGS, CMD_KW_DB, CMD_KW_PATH, CMD_KW_DATA, \
-    RESPONSE_NODE_TYPE, NODE_TYPE_GROUP, NODE_TYPE_DATASET, RESPONSE_NODE_SHAPE, RESPONSE_NODE_DTYPE, CMD_KW_KEY, \
-    RESPONSE_DATA, CMD_KW_STATUS, RESPONSE_ATTRS_CONTAINS, RESPONSE_ATTRS_KEYS
-from hurraypy.status_codes import FILE_EXISTS, OK, FILE_NOT_FOUND, GROUP_EXISTS, \
-    NODE_NOT_FOUND, DATASET_EXISTS, VALUE_ERROR, TYPE_ERROR, CREATED, UNKNOWN_COMMAND, MISSING_ARGUMENT, MISSING_DATA, \
-    KEY_ERROR, INVALID_ARGUMENT
+from hurraypy.protocol import (CMD_CREATE_DATABASE, CMD_CONNECT_DATABASE,
+                               CMD_CREATE_GROUP, CMD_CREATE_DATASET,
+                               CMD_GET_NODE, CMD_SLICE_DATASET,
+                               CMD_BROADCAST_DATASET, CMD_ATTRIBUTES_GET,
+                               CMD_ATTRIBUTES_SET, CMD_ATTRIBUTES_CONTAINS,
+                               CMD_ATTRIBUTES_KEYS, CMD_KW_CMD, CMD_KW_ARGS,
+                               CMD_KW_DB, CMD_KW_PATH, CMD_KW_DATA,
+                               RESPONSE_NODE_TYPE, NODE_TYPE_GROUP,
+                               NODE_TYPE_DATASET, RESPONSE_NODE_SHAPE,
+                               RESPONSE_NODE_DTYPE, CMD_KW_KEY, RESPONSE_DATA,
+                               CMD_KW_STATUS, RESPONSE_ATTRS_CONTAINS,
+                               RESPONSE_ATTRS_KEYS)
+from hurraypy.status_codes import (FILE_EXISTS, OK, FILE_NOT_FOUND,
+                                   GROUP_EXISTS, NODE_NOT_FOUND,
+                                   DATASET_EXISTS, VALUE_ERROR, TYPE_ERROR,
+                                   CREATED, UNKNOWN_COMMAND, MISSING_ARGUMENT,
+                                   MISSING_DATA, KEY_ERROR, INVALID_ARGUMENT)
 
 DATABASE_COMMANDS = (
     CMD_CREATE_DATABASE,
@@ -175,13 +184,10 @@ class MockServer(object):
                 elif cmd == CMD_ATTRIBUTES_CONTAINS:
                     if CMD_KW_KEY not in args:
                         return self.response(MISSING_ARGUMENT)
-                    data = {
-                        RESPONSE_ATTRS_CONTAINS: args[CMD_KW_KEY] in db[path].attrs
-                    }
+                    data = {RESPONSE_ATTRS_CONTAINS:
+                            args[CMD_KW_KEY] in db[path].attrs}
                 elif cmd == CMD_ATTRIBUTES_KEYS:
-                    data = {
-                        RESPONSE_ATTRS_KEYS: db[path].attrs.keys()
-                    }
+                    data = {RESPONSE_ATTRS_KEYS: db[path].attrs.keys()}
         else:
             status = UNKNOWN_COMMAND
 
