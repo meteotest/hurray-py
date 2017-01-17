@@ -159,7 +159,7 @@ class Connection:
         self.send_rcv(CMD_CONNECT_DATABASE, {CMD_KW_DB: dbname})
 
         self.__db = dbname
-        return Group(self, '/')
+        return Group(conn=self, path='/')
 
     @asyncio.coroutine
     def __send_rcv(self, cmd, args, data):
