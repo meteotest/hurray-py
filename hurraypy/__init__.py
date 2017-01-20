@@ -30,9 +30,11 @@ from __future__ import (absolute_import, division, print_function,
 import logging
 
 from hurraypy.client import connect
-from .version import __version__
+from .nodes import File, Group, Dataset
 
-__all__ = ["connect", "__version__"]
+__all__ = ["connect", "__version__", "Dataset", "File", "Group"]
+
+__version__ = '0.0.2'
 
 
 try:  # Python 2.7+

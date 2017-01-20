@@ -35,7 +35,7 @@ from hurraypy.exceptions import (MessageError, DatabaseError, NodeError,
                                  ServerError)
 from hurraypy.log import log
 from hurraypy.msgpack_ext import decode_np_array, encode_np_array
-from hurraypy.nodes import Group
+from hurraypy.nodes import File
 from hurraypy.protocol import (CMD_CREATE_DATABASE, CMD_KW_STATUS, CMD_KW_DB,
                                CMD_CONNECT_DATABASE, CMD_KW_CMD, CMD_KW_ARGS,
                                CMD_KW_DATA, MSG_LEN, PROTOCOL_VER)
@@ -128,9 +128,9 @@ class Connection:
     def __exit__(self, type, value, tb):
         pass
 
-    def create_db(self, name):
+    def create_file(self, name):
         """
-        Create a database / hdf5 file
+        Create an hdf5 file
 
         Args:
             name: str, name of the database
@@ -143,12 +143,13 @@ class Connection:
         """
         self.send_rcv(CMD_CREATE_DATABASE, {CMD_KW_DB: name})
 
-    def connect_db(self, dbname):
+    def use_file(self, dbname, mode="w"):
         """
-        Connect to database
+        Use an hdf5 file
 
         Args:
             dbname: str, name of the database
+            mode: 'r' or 'w'
 
         Returns:
             An instance of the Group class
@@ -156,10 +157,11 @@ class Connection:
         Raises:
             DatabaseError if ``dbname`` does not exist
         """
+        # TODO implement mode
         self.send_rcv(CMD_CONNECT_DATABASE, {CMD_KW_DB: dbname})
-
         self.__db = dbname
-        return Group(conn=self, path='/')
+
+        return File(conn=self, path='/')
 
     @asyncio.coroutine
     def __send_rcv(self, cmd, args, data):
