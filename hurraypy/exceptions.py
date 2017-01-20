@@ -26,13 +26,16 @@
 Core exceptions raised by the hurray client
 """
 
+from hurraypy import status_codes
+
 
 class HurrayError(Exception):
     pass
 
     def __init__(self, status, *args, **kwargs):
         self.status = status
-        super(HurrayError, self).__init__(status, *args, **kwargs)
+        self.msg = status_codes.get_msg(status)
+        super(HurrayError, self).__init__(status, self.msg, *args, **kwargs)
 
 
 class MessageError(HurrayError):

@@ -49,3 +49,32 @@ KEY_ERROR = 405
 # 5xx: Server Error
 INTERNAL_SERVER_ERROR = 500
 NOT_IMPLEMENTED = 501
+
+
+STATUS_MSGS = {
+    OK: "OK",
+    CREATED: "resource successfully created",
+    UPDATED: "resource successfully updated",
+
+    UNKNOWN_COMMAND: "unknown command",
+    MISSING_ARGUMENT: "missing argument",
+    INVALID_ARGUMENT: "invalid argument",
+    MISSING_DATA: "missing data",
+
+    FILE_EXISTS: "file already exists",
+    FILE_NOT_FOUND: "file not found",
+
+    GROUP_EXISTS: "group already exists",
+    DATASET_EXISTS: "dataset already exists",
+    NODE_NOT_FOUND: "node not found",
+    VALUE_ERROR: "illegal argument",
+    TYPE_ERROR: "invalid argument or slicing object",
+    KEY_ERROR: "key error",
+
+    INTERNAL_SERVER_ERROR: "internal server error",
+    NOT_IMPLEMENTED: "not implemented",
+}
+
+
+def get_msg(status):
+    return STATUS_MSGS.get(status, str(status))
