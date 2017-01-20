@@ -36,7 +36,8 @@ from hurraypy.protocol import (RESPONSE_NODE_TYPE, NODE_TYPE_GROUP,
                                CMD_ATTRIBUTES_SET, CMD_ATTRIBUTES_CONTAINS,
                                RESPONSE_ATTRS_CONTAINS, CMD_ATTRIBUTES_GET,
                                RESPONSE_ATTRS_KEYS, CMD_ATTRIBUTES_KEYS,
-                               CMD_KW_PATH, CMD_CREATE_GROUP, CMD_KW_KEY,
+                               CMD_KW_PATH, CMD_CREATE_GROUP,
+                               CMD_REQUIRE_GROUP, CMD_KW_KEY,
                                CMD_SLICE_DATASET, CMD_BROADCAST_DATASET,
                                CMD_GET_KEYS, RESPONSE_NODE_KEYS)
 from hurraypy.status_codes import KEY_ERROR
@@ -115,6 +116,8 @@ class Group(Node):
 
     def create_group(self, name):
         """
+        Create and return a new group.
+
         Args:
             name: name or path of the group, may contain slashes, e.g.,
                 'group/subgroup'
@@ -129,8 +132,22 @@ class Group(Node):
         self._conn.send_rcv(CMD_CREATE_GROUP, args)
         return Group(self._conn, group_path)
 
-    def create_dataset(self, name, data=None, shape=None, init_value=0,
-                       dtype=None, attrs=None):
+    def require_group(self, name):
+        """
+        Open/return a group, creating it if it doesn't exist.
+
+        Args:
+            name: name or path of the group, may contain slashes, e.g.,
+                'group/subgroup'
+        """
+        group_path = self._compose_path(name)
+        args = {
+            CMD_KW_PATH: group_path,
+        }
+        self._conn.send_rcv(CMD_REQUIRE_GROUP, args)
+        return Group(self._conn, group_path)
+
+    def create_dataset(self, name, **kwargs):
         """
         Provide either ``data`` or both ``shape`` and ``init_value``.
 
@@ -139,7 +156,7 @@ class Group(Node):
             data: numpy array
             shape: tuple denoting the shape of the array to be created
             init_value: initial value to be used to create array. Possible
-                values: either a scaler (int, float) or 'random'
+                values: either a scalar (int, float) or 'random'
             dtype: if ``init_value`` is 'random', you can optionally provide
                 a dtype.
             attrs: dictionary of attributes TODO
@@ -148,18 +165,19 @@ class Group(Node):
             ValueError is dataset already exists
         """
         dst_path = self._compose_path(name)
-        if data is None:
-            args = {
-                CMD_KW_PATH: dst_path,
-                'shape': shape,
-                'init_value': init_value,
-                'dtype': dtype
-            }
+        args = {
+            CMD_KW_PATH: dst_path,
+        }
+        args.update(kwargs)
+        if "data" not in args:
+            data = None
         else:
-            args = {
-                CMD_KW_PATH: dst_path,
-            }
-        self._conn.send_rcv(CMD_CREATE_DATASET, args, data)
+            data = args["data"]
+            del args["data"]
+        result = self._conn.send_rcv(CMD_CREATE_DATASET, args, data)
+        shape = result["shape"]
+        dtype = result["dtype"]
+
         return Dataset(self._conn, dst_path, shape=shape, dtype=dtype)
 
     def require_dataset(self, **kwargs):
@@ -184,6 +202,18 @@ class Group(Node):
 
     def __delitem__(self, key):
         raise NotImplementedError()
+
+
+class File(Group):
+    """
+    File object
+    """
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
 
 
 class Dataset(Node):
