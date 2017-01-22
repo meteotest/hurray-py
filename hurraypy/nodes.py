@@ -203,6 +203,46 @@ class Group(Node):
     def __delitem__(self, key):
         raise NotImplementedError()
 
+    def visititems(self, func):
+        """
+        Recursively visit all objects in this group and subgroups. You have
+        to supply a callable with the signature::
+
+            func(name, object) -> None or return value
+
+        ``object`` will be a ``Group`` or ``Dataset`` instance.
+        Return None to continue visiting until all objects are exhausted.
+        Returning anything else will immediately stop visiting and return that
+        value from visit. Example::
+
+            >>> def find_foo(name):
+            ...     ''' Find first object with 'foo' anywhere in the name '''
+            ...     if 'foo' in name:
+            ...         return name
+            >>> group.visit(find_foo)
+            'some/subgroup/foo'
+
+        Args:
+            func: callable
+        """
+        raise NotImplementedError()
+        # args = {
+        #     CMD_KW_PATH: self._path,
+        # }
+        # # get the whole (sub)tree of nodes from server
+        # result = self._conn.send_rcv(CMD_GET_TREE, args)
+        # TODO traverse tree recursively
+
+        # if result[RESPONSE_NODE_TYPE] == NODE_TYPE_GROUP:
+        #     return Group(self._conn, path)
+        # elif result[RESPONSE_NODE_TYPE] == NODE_TYPE_DATASET:
+        #     # compatibility with numpy
+        #     shape = tuple(result[RESPONSE_NODE_SHAPE])
+        #     dtype = result[RESPONSE_NODE_DTYPE]
+        #     return Dataset(self._conn, path, shape=shape, dtype=dtype)
+        # else:
+        #     raise RuntimeError("server returned unknown node type")
+
 
 class File(Group):
     """
