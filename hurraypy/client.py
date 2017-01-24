@@ -34,7 +34,7 @@ import msgpack
 from hurraypy.exceptions import (MessageError, DatabaseError, NodeError,
                                  ServerError)
 from hurraypy.log import log
-from hurraypy.msgpack_ext import decode_np_array, encode_np_array
+from hurraypy.msgpack_ext import decode, encode
 from hurraypy.nodes import File
 from hurraypy.protocol import (CMD_CREATE_DATABASE, CMD_KW_STATUS, CMD_KW_DB,
                                CMD_CONNECT_DATABASE, CMD_KW_CMD, CMD_KW_ARGS,
@@ -65,7 +65,7 @@ def _recv(reader):
     msg_data = yield from reader.readexactly(msg_length)
 
     # decode message
-    return msgpack.unpackb(msg_data, object_hook=decode_np_array,
+    return msgpack.unpackb(msg_data, object_hook=decode,
                            use_list=False, encoding='utf-8')
 
 
@@ -171,7 +171,7 @@ class Connection:
             CMD_KW_CMD: cmd,
             CMD_KW_ARGS: args,
             CMD_KW_DATA: data
-        }, default=encode_np_array, use_bin_type=True)
+        }, default=encode, use_bin_type=True)
 
         log.debug("Sending %d bytes...", len(msg))
         # Prefix message with protocol version

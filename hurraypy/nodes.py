@@ -29,9 +29,7 @@ Hdf5 entities (Nodes, Groups, Datasets)
 import os
 
 from hurraypy.exceptions import NodeError
-from hurraypy.protocol import (RESPONSE_NODE_TYPE, NODE_TYPE_GROUP,
-                               NODE_TYPE_DATASET, RESPONSE_NODE_SHAPE,
-                               RESPONSE_NODE_DTYPE, CMD_GET_NODE,
+from hurraypy.protocol import (CMD_GET_NODE,
                                CMD_CREATE_DATASET, RESPONSE_DATA,
                                CMD_ATTRIBUTES_SET, CMD_ATTRIBUTES_CONTAINS,
                                RESPONSE_ATTRS_CONTAINS, CMD_ATTRIBUTES_GET,
@@ -39,7 +37,7 @@ from hurraypy.protocol import (RESPONSE_NODE_TYPE, NODE_TYPE_GROUP,
                                CMD_KW_PATH, CMD_CREATE_GROUP,
                                CMD_REQUIRE_GROUP, CMD_KW_KEY,
                                CMD_SLICE_DATASET, CMD_BROADCAST_DATASET,
-                               CMD_GET_KEYS, RESPONSE_NODE_KEYS)
+                               CMD_GET_KEYS, CMD_GET_TREE, RESPONSE_NODE_KEYS)
 from hurraypy.status_codes import KEY_ERROR
 
 
@@ -84,15 +82,11 @@ class Node(object):
         }
         result = self._conn.send_rcv(CMD_GET_NODE, args)
 
-        if result[RESPONSE_NODE_TYPE] == NODE_TYPE_GROUP:
-            return Group(self._conn, path)
-        elif result[RESPONSE_NODE_TYPE] == NODE_TYPE_DATASET:
-            # compatibility with numpy
-            shape = tuple(result[RESPONSE_NODE_SHAPE])
-            dtype = result[RESPONSE_NODE_DTYPE]
-            return Dataset(self._conn, path, shape=shape, dtype=dtype)
-        else:
-            raise RuntimeError("server returned unknown node type")
+        node = result["data"]  # Group or Dataset
+        # TODO this is hacky
+        node._conn = self._conn
+
+        return node
 
     @property
     def path(self):
@@ -184,7 +178,6 @@ class Group(Node):
         raise NotImplementedError()
 
     def keys(self):
-        # raise NotImplementedError()
         args = {
             CMD_KW_PATH: self._path,
         }
@@ -225,12 +218,12 @@ class Group(Node):
         Args:
             func: callable
         """
-        raise NotImplementedError()
-        # args = {
-        #     CMD_KW_PATH: self._path,
-        # }
-        # # get the whole (sub)tree of nodes from server
-        # result = self._conn.send_rcv(CMD_GET_TREE, args)
+        args = {
+            CMD_KW_PATH: self._path,
+        }
+        # get the whole (sub)tree of nodes from server
+        result = self._conn.send_rcv(CMD_GET_TREE, args)
+        print(result)
         # TODO traverse tree recursively
 
         # if result[RESPONSE_NODE_TYPE] == NODE_TYPE_GROUP:
@@ -242,6 +235,17 @@ class Group(Node):
         #     return Dataset(self._conn, path, shape=shape, dtype=dtype)
         # else:
         #     raise RuntimeError("server returned unknown node type")
+
+    def tree(self):
+        """
+        """
+        args = {
+            CMD_KW_PATH: self._path,
+        }
+        # get the whole (sub)tree of nodes from server
+        result = self._conn.send_rcv(CMD_GET_TREE, args)
+
+        return result
 
 
 class File(Group):

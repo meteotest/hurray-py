@@ -32,8 +32,13 @@ from inspect import isclass
 import numpy as np
 from numpy.lib.format import header_data_from_array_1_0
 
+from .nodes import Group, Dataset
+from .protocol import (RESPONSE_NODE_TYPE, NODE_TYPE_GROUP,
+                       NODE_TYPE_DATASET, RESPONSE_NODE_SHAPE,
+                       RESPONSE_NODE_DTYPE, RESPONSE_NODE_PATH)
 
-def encode_np_array(obj):
+
+def encode(obj):
     """
     Encode numpy arrays and slices
     :param obj: object to serialize
@@ -61,7 +66,7 @@ def encode_np_array(obj):
     return obj
 
 
-def decode_np_array(obj):
+def decode(obj):
     """
     Decode numpy arrays and slices
     :param obj: object to decode
@@ -70,7 +75,7 @@ def decode_np_array(obj):
 
     if '__ndarray__' in obj:
         arr = np.fromstring(obj['data'], dtype=np.dtype(obj['descr']))
-        shape = obj['shape']
+        shape = obj[RESPONSE_NODE_SHAPE]
         arr.shape = shape
         if obj['fortran_order']:
             arr.shape = shape[::-1]
@@ -78,5 +83,15 @@ def decode_np_array(obj):
         return arr
     elif '__slice__' in obj:
         return slice(*obj['__slice__'])
+    elif (isinstance(obj, dict)
+          and obj.get(RESPONSE_NODE_TYPE, None) == NODE_TYPE_GROUP):
+        # convert to Group object
+        return Group(conn=None, path=obj[RESPONSE_NODE_PATH])
+    elif (isinstance(obj, dict)
+          and obj.get(RESPONSE_NODE_TYPE, None) == NODE_TYPE_DATASET):
+        # convert to Dataset object
+        return Dataset(conn=None, path=obj[RESPONSE_NODE_PATH],
+                       shape=obj[RESPONSE_NODE_SHAPE],
+                       dtype=obj[RESPONSE_NODE_DTYPE])
 
     return obj
