@@ -24,8 +24,6 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """The hurray client."""
 
-from __future__ import (absolute_import, division, print_function,
-                        with_statement)
 import warnings
 import logging
 
