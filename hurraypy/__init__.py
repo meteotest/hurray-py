@@ -26,11 +26,15 @@
 
 from __future__ import (absolute_import, division, print_function,
                         with_statement)
-
+import warnings
 import logging
 
-from hurraypy.client import connect
-from .nodes import File, Group, Dataset
+try:
+    from hurraypy.client import connect
+    from .nodes import File, Group, Dataset
+except ImportError:
+    warnings.warn("Unable to import modules. You can ignore this"
+                  " warning if it occurs during installation of the package")
 
 __all__ = ["connect", "__version__", "Dataset", "File", "Group"]
 

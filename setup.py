@@ -7,10 +7,11 @@ try:
 except ImportError:
     from distutils.core import setup
 
+from hurraypy import __version__
+
 with io.open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
 
-exec(open('hurraypy/version.py').read())
 
 setup(
     name='hurraypy',
