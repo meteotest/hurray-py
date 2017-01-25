@@ -57,6 +57,15 @@ class Node(object):
         # every node has an attrs property
         self.attrs = AttributeManager(self._conn, self._path)
 
+    @property
+    def conn(self):
+        return self._conn
+
+    @conn.setter
+    def conn(self, value):
+        self._conn = value
+        self.attrs.conn = value
+
     def _compose_path(self, name):
         """
         """
@@ -84,7 +93,7 @@ class Node(object):
 
         node = result[RESPONSE_DATA]  # Group or Dataset
         # TODO this is hacky
-        node._conn = self._conn
+        node.conn = self.conn
 
         return node
 
@@ -172,7 +181,7 @@ class Group(Node):
 
         dst = result["data"]  # Dataset
         # TODO this is hacky
-        dst._conn = self._conn
+        dst.conn = self.conn
 
         return dst
 
@@ -337,6 +346,14 @@ class AttributeManager(object):
 
     def __iter__(self):
         raise NotImplementedError()
+
+    @property
+    def conn(self):
+        return self.__conn
+
+    @conn.setter
+    def conn(self, value):
+        self.__conn = value
 
     def keys(self):
         """
