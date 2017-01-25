@@ -22,8 +22,8 @@ class IntegrationTest(unittest.TestCase):
 
     def operations(self, conn):
         db_name = 'htest-' + random_name(5) + '.h5'
-        conn.create_db(db_name)
-        db = conn.connect_db(db_name)
+        conn.create_file(db_name)
+        db = conn.use_file(db_name)
 
         group_path = '/mygrp'
         db.create_group(group_path)

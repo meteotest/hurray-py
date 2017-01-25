@@ -82,7 +82,7 @@ class Node(object):
         }
         result = self._conn.send_rcv(CMD_GET_NODE, args)
 
-        node = result["data"]  # Group or Dataset
+        node = result[RESPONSE_DATA]  # Group or Dataset
         # TODO this is hacky
         node._conn = self._conn
 
@@ -169,10 +169,12 @@ class Group(Node):
             data = args["data"]
             del args["data"]
         result = self._conn.send_rcv(CMD_CREATE_DATASET, args, data)
-        shape = result["shape"]
-        dtype = result["dtype"]
 
-        return Dataset(self._conn, dst_path, shape=shape, dtype=dtype)
+        dst = result["data"]  # Dataset
+        # TODO this is hacky
+        dst._conn = self._conn
+
+        return dst
 
     def require_dataset(self, **kwargs):
         raise NotImplementedError()
@@ -183,7 +185,7 @@ class Group(Node):
         }
         result = self._conn.send_rcv(CMD_GET_KEYS, args)
 
-        return result[RESPONSE_NODE_KEYS]
+        return result[RESPONSE_DATA][RESPONSE_NODE_KEYS]
 
     def items(self):
         """
