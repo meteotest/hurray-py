@@ -363,7 +363,7 @@ class AttributeManager(object):
             CMD_KW_PATH: self.__path,
         }
         result = self.__conn.send_rcv(CMD_ATTRIBUTES_KEYS, args)
-        return result[RESPONSE_ATTRS_KEYS]
+        return result[RESPONSE_DATA][RESPONSE_ATTRS_KEYS]
 
     def __contains__(self, key):
         args = {
@@ -371,7 +371,7 @@ class AttributeManager(object):
             CMD_KW_KEY: key,
         }
         result = self.__conn.send_rcv(CMD_ATTRIBUTES_CONTAINS, args)
-        return result[RESPONSE_ATTRS_CONTAINS]
+        return result[RESPONSE_DATA][RESPONSE_ATTRS_CONTAINS]
 
     def __getitem__(self, key):
         """

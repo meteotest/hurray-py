@@ -1,6 +1,7 @@
 import random
 import string
 import unittest
+import os
 
 import numpy as np
 from numpy.testing import assert_array_equal
@@ -21,19 +22,40 @@ class IntegrationTest(unittest.TestCase):
     """
 
     def operations(self, conn):
+        """
+        test basic operations
+        """
+        # create a file
         db_name = 'htest-' + random_name(5) + '.h5'
         conn.create_file(db_name)
-        db = conn.use_file(db_name)
+        self.db = conn.use_file(db_name)
 
-        group_path = '/mygrp'
-        db.create_group(group_path)
-        grp = db[group_path]
+        self.group_operations()
 
-        self.assertEqual(grp.path, group_path)
+        self.dataset_operations()
+
+        self.attr_operations()
+
+    def group_operations(self):
+        db = self.db
+        # create and get a group
+        db.create_group("/mygrp")
+        db.require_group("/mygrp/subgrp/subsubgrp")
+        db.require_group("/mygrp/subgrp2")
+        grp = db["/mygrp"]
+
+        self.assertEqual(grp.path, "/mygrp")
         self.assertEqual(db.keys(), ("mygrp",))
+        self.assertEqual(db["/"].keys(), ("mygrp",))
+        self.assertEqual(db["/mygrp"].keys(),
+                         ("subgrp", "subgrp2"))
+
+    def dataset_operations(self):
+        db = self.db
 
         array_name = 'myarray'
-        array_path = group_path + '/' + array_name
+        array_path = os.path.join("/mygrp3", array_name)
+        grp = db.create_group("/mygrp3")
 
         data = np.array([[1, 2, 3], [4, 5, 6]])
         ds = grp.create_dataset(array_name, data=data)
@@ -48,6 +70,12 @@ class IntegrationTest(unittest.TestCase):
         x = np.array([8, 9, 10])
         dataset[0, :] = x
         assert_array_equal(np.array([x, data[1]]), dataset[:])
+
+    def attr_operations(self):
+        db = self.db
+
+        data = np.array([[1, 2, 3], [4, 5, 6]])
+        dataset = db.create_dataset("dataset_foo", data=data)
 
         attr_key = 'foo'
         attr_value = 'bar'

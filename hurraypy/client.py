@@ -37,7 +37,7 @@ from hurraypy.log import log
 from hurraypy.msgpack_ext import decode, encode
 from hurraypy.nodes import File
 from hurraypy.protocol import (CMD_CREATE_DATABASE, CMD_KW_STATUS, CMD_KW_DB,
-                               CMD_CONNECT_DATABASE, CMD_KW_CMD, CMD_KW_ARGS,
+                               CMD_USE_DATABASE, CMD_KW_CMD, CMD_KW_ARGS,
                                CMD_KW_DATA, MSG_LEN, PROTOCOL_VER)
 
 
@@ -158,7 +158,7 @@ class Connection:
             DatabaseError if ``dbname`` does not exist
         """
         # TODO implement mode
-        self.send_rcv(CMD_CONNECT_DATABASE, {CMD_KW_DB: dbname})
+        self.send_rcv(CMD_USE_DATABASE, {CMD_KW_DB: dbname})
         self.__db = dbname
 
         return File(conn=self, path='/')

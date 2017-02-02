@@ -1,15 +1,25 @@
-from hurraypy.protocol import (CMD_CREATE_DATABASE, CMD_CONNECT_DATABASE,
-                               CMD_CREATE_GROUP, CMD_CREATE_DATASET,
-                               CMD_GET_NODE, CMD_SLICE_DATASET,
-                               CMD_BROADCAST_DATASET, CMD_ATTRIBUTES_GET,
-                               CMD_ATTRIBUTES_SET, CMD_ATTRIBUTES_CONTAINS,
-                               CMD_ATTRIBUTES_KEYS, CMD_KW_CMD, CMD_KW_ARGS,
-                               CMD_KW_DB, CMD_KW_PATH, CMD_KW_DATA,
-                               RESPONSE_NODE_TYPE, NODE_TYPE_GROUP,
+"""
+Mocks hurray server messages
+"""
+
+# TODO this does not work at the moment. Does it really make sense to mock the
+# whole server, duplicating most of the server code?
+
+from hurraypy.protocol import (CMD_CREATE_DATABASE, CMD_USE_DATABASE,
+                               CMD_CREATE_GROUP, CMD_REQUIRE_GROUP,
+                               CMD_CREATE_DATASET, CMD_GET_NODE, CMD_GET_KEYS,
+                               CMD_GET_TREE,
+                               CMD_SLICE_DATASET, CMD_BROADCAST_DATASET,
+                               CMD_ATTRIBUTES_GET, CMD_ATTRIBUTES_SET,
+                               CMD_ATTRIBUTES_CONTAINS, CMD_ATTRIBUTES_KEYS,
+                               CMD_KW_CMD, CMD_KW_ARGS, CMD_KW_DB, CMD_KW_PATH,
+                               CMD_KW_DATA, RESPONSE_NODE_TYPE, NODE_TYPE_GROUP,
                                NODE_TYPE_DATASET, RESPONSE_NODE_SHAPE,
-                               RESPONSE_NODE_DTYPE, CMD_KW_KEY, RESPONSE_DATA,
+                               RESPONSE_NODE_DTYPE, CMD_KW_KEY,
                                CMD_KW_STATUS, RESPONSE_ATTRS_CONTAINS,
-                               RESPONSE_ATTRS_KEYS)
+                               RESPONSE_ATTRS_KEYS, RESPONSE_NODE_KEYS,
+                               RESPONSE_NODE_TREE)
+
 from hurraypy.status_codes import (FILE_EXISTS, OK, FILE_NOT_FOUND,
                                    GROUP_EXISTS, NODE_NOT_FOUND,
                                    DATASET_EXISTS, VALUE_ERROR, TYPE_ERROR,
@@ -18,7 +28,7 @@ from hurraypy.status_codes import (FILE_EXISTS, OK, FILE_NOT_FOUND,
 
 DATABASE_COMMANDS = (
     CMD_CREATE_DATABASE,
-    CMD_CONNECT_DATABASE
+    CMD_USE_DATABASE
 )
 
 NODE_COMMANDS = (CMD_CREATE_GROUP,
@@ -50,12 +60,14 @@ class MockServer(object):
         self.dbs = {}
 
     def response(self, status, data=None):
-        res = {
+        resp = {
             CMD_KW_STATUS: status
         }
-        if data:
-            res.update(data)
-        return res
+        if data is not None:
+            resp["data"] = data
+
+        # return resp
+        return msgpack.packb(resp, default=encode_msgpack, use_bin_type=True)
 
     def db_exists(self, database):
         """
@@ -90,7 +102,7 @@ class MockServer(object):
                 else:
                     self.dbs[db] = {}
                     status = CREATED
-            elif cmd == CMD_CONNECT_DATABASE:
+            elif cmd == CMD_USE_DATABASE:
                 if not self.db_exists(db):
                     status = FILE_NOT_FOUND
 
@@ -116,36 +128,52 @@ class MockServer(object):
                 else:
                     db[path] = Group()
 
+            if cmd == CMD_REQUIRE_GROUP:
+                db[path] = Group()
+
             elif cmd == CMD_CREATE_DATASET:
                 if path in db:
                     status = DATASET_EXISTS
                 else:
                     if CMD_KW_DATA not in msg:
                         return self.response(MISSING_DATA)
-                    db[path] = Dataset(data=msg[CMD_KW_DATA])
+                    dst = Dataset(data=msg[CMD_KW_DATA])
+                    db[path] = dst
+                    data = dst
+
             else:  # Commands for existing nodes
                 if path not in db:
                     return self.response(NODE_NOT_FOUND)
 
                 if cmd == CMD_GET_NODE:
                     node = db[path]
+                    # let the msgpack encoder handle encoding of
+                    # Groups/Datasets
+                    data = node
+                elif cmd == CMD_GET_KEYS:
+                    node = db[path]
                     if isinstance(node, Group):
                         data = {
-                            RESPONSE_NODE_TYPE: NODE_TYPE_GROUP
+                            # without list() it does not work with py3 (returns
+                            # a view on a closed hdf5 file)
+                            RESPONSE_NODE_KEYS: list(node.keys())
                         }
                     elif isinstance(node, Dataset):
+                        return self.response(INVALID_ARGUMENT)
+                elif cmd == CMD_GET_TREE:
+                    node = db[path]
+                    if isinstance(node, Group):
+                        tree = node.tree()
                         data = {
-                            RESPONSE_NODE_TYPE: NODE_TYPE_DATASET,
-                            RESPONSE_NODE_SHAPE: node.shape,
-                            RESPONSE_NODE_DTYPE: str(node.dtype)
+                            RESPONSE_NODE_TREE: tree
                         }
+                    elif isinstance(node, Dataset):
+                        return self.response(INVALID_ARGUMENT)
                 elif cmd == CMD_SLICE_DATASET:
                     if CMD_KW_KEY not in args:
                         return self.response(MISSING_ARGUMENT)
                     try:
-                        data = {
-                            RESPONSE_DATA: db[path].data[args[CMD_KW_KEY]]
-                        }
+                        data = db[path].data[args[CMD_KW_KEY]]
                     except ValueError:
                         status = VALUE_ERROR
 
@@ -175,9 +203,7 @@ class MockServer(object):
                     if CMD_KW_KEY not in args:
                         return self.response(MISSING_ARGUMENT)
                     try:
-                        data = {
-                            RESPONSE_DATA: db[path].attrs[args[CMD_KW_KEY]]
-                        }
+                        data = db[path].attrs[args[CMD_KW_KEY]]
                     except KeyError:
                         status = KEY_ERROR
 

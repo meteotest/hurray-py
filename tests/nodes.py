@@ -23,6 +23,7 @@ def _connect(*args):
 
 
 class NodeTestCase(unittest.TestCase):
+
     def setUp(self):
         self.ms = MockServer()
 
@@ -41,30 +42,30 @@ class NodeTestCase(unittest.TestCase):
 
     def test_create_connect(self):
         db_name = 'test.h5'
-        self.conn.create_db(db_name)
+        self.conn.create_file(db_name)
         self.run_mock.assert_called_once_with('create_db', {'db': db_name},
                                               None)
 
         with self.assertRaises(DatabaseError) as context:
-            self.conn.create_db(db_name)
+            self.conn.create_file(db_name)
 
         self.assertEqual(context.exception.status, FILE_EXISTS)
 
-        db = self.conn.connect_db(db_name)
+        db = self.conn.use_file(db_name)
 
         self.assertIsInstance(db, Group)
         self.assertEqual(db._conn.db, db_name)
         self.assertEqual(db._path, '/')
 
         with self.assertRaises(DatabaseError) as context:
-            self.conn.connect_db('invalid')
+            self.conn.use_file('invalid')
 
         self.assertEqual(context.exception.status, FILE_NOT_FOUND)
 
     def test_group(self):
         db_name = 'test.h5'
-        self.conn.create_db(db_name)
-        db = self.conn.connect_db(db_name)
+        self.conn.create_file(db_name)
+        db = self.conn.use_file(db_name)
 
         group_path = '/mygrp'
 
@@ -77,7 +78,7 @@ class NodeTestCase(unittest.TestCase):
 
         # Invalid group path
         with self.assertRaises(NodeError) as context:
-            g = db['invalid']
+            db['invalid']
 
         self.assertEqual(context.exception.status, NODE_NOT_FOUND)
 
@@ -132,7 +133,7 @@ class NodeTestCase(unittest.TestCase):
 
         # Get non-existing attribute
         with self.assertRaises(NodeError) as context:
-            v = grp.attrs['invalid']
+            grp.attrs['invalid']
 
         self.assertEqual(context.exception.status, KEY_ERROR)
 
@@ -153,8 +154,8 @@ class NodeTestCase(unittest.TestCase):
 
     def test_dataset(self):
         db_name = 'test.h5'
-        self.conn.create_db(db_name)
-        db = self.conn.connect_db(db_name)
+        self.conn.create_file(db_name)
+        db = self.conn.use_file(db_name)
 
         data_path = '/mydata'
         data = np.array([[1, 2, 3], [4, 5, 6]])
@@ -168,7 +169,7 @@ class NodeTestCase(unittest.TestCase):
 
         # Invalid dataset path
         with self.assertRaises(NodeError) as context:
-            ds = db['invalid']
+            db['invalid']
 
         self.assertEqual(context.exception.status, NODE_NOT_FOUND)
 
@@ -242,7 +243,7 @@ class NodeTestCase(unittest.TestCase):
 
         # Get non-existing attribute
         with self.assertRaises(NodeError) as context:
-            v = dataset.attrs['invalid']
+            dataset.attrs['invalid']
 
         self.assertEqual(context.exception.status, KEY_ERROR)
 
