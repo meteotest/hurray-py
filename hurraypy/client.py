@@ -37,8 +37,8 @@ from hurraypy.log import log
 from hurraypy.msgpack_ext import get_decoder, encode
 from hurraypy.nodes import File, Node
 from hurraypy.protocol import (CMD_CREATE_DATABASE, CMD_KW_STATUS, CMD_KW_DB,
-                               CMD_USE_DATABASE, CMD_KW_CMD, CMD_KW_ARGS,
-                               CMD_KW_DATA, MSG_LEN, PROTOCOL_VER)
+                               CMD_KW_OVERWRITE, CMD_USE_DATABASE, CMD_KW_CMD,
+                               CMD_KW_ARGS, CMD_KW_DATA, MSG_LEN, PROTOCOL_VER)
 
 
 class Connection:
@@ -100,12 +100,13 @@ class Connection:
     def __exit__(self, type, value, tb):
         pass
 
-    def create_file(self, name):
+    def create_file(self, name, overwrite=False):
         """
         Create an hdf5 file
 
         Args:
             name: str, name of the database
+            overwrite: truncate file if it exists
 
         Returns:
             None
@@ -113,7 +114,11 @@ class Connection:
         Raises:
             DatabaseError if db already exists
         """
-        self.send_rcv(CMD_CREATE_DATABASE, {CMD_KW_DB: name})
+        args = {
+            CMD_KW_DB: name,
+            CMD_KW_OVERWRITE: overwrite,
+        }
+        self.send_rcv(CMD_CREATE_DATABASE, args)
 
     def use_file(self, dbname, mode="w"):
         """
