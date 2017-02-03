@@ -30,9 +30,10 @@ import logging
 try:
     from hurraypy.client import connect
     from .nodes import File, Group, Dataset
-except ImportError:
-    warnings.warn("Unable to import modules. You can ignore this"
-                  " warning if it occurs during installation of the package")
+except ImportError as e:
+    warnings.warn("Unable to import modules: {}\nYou can ignore this"
+                  " warning if it occurs during installation of the package"
+                  .format(e))
 
 __all__ = ["connect", "__version__", "Dataset", "File", "Group"]
 

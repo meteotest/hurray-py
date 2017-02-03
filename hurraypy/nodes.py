@@ -40,6 +40,7 @@ from hurraypy.protocol import (CMD_GET_NODE,
                                CMD_SLICE_DATASET, CMD_BROADCAST_DATASET,
                                CMD_GET_KEYS, CMD_GET_TREE, RESPONSE_NODE_KEYS)
 from hurraypy.status_codes import KEY_ERROR
+from .ipython import CSS_TREE, ICON_GROUP, ICON_DATASET
 
 
 class Node(object):
@@ -469,9 +470,9 @@ class Tree(list):
     def __init__(self, members):
         super().__init__(members)
 
-    def _repr_html_(self):
-
-        output = ["<pre>"]
+    def __str__(self):
+        """ tree representation """
+        output = []
 
         def traverse(treenode, depth=0):
             node, children = treenode
@@ -481,8 +482,40 @@ class Tree(list):
 
         traverse(self)
 
-        output.append("</pre>")
+        output = "\n".join(output)
+
+        return output
+
+    def __repr__(self):
+        return self.__str__()
+
+    def _repr_html_(self):
+
+        output = ['<ul class="hurraytree">\n']
+
+        def traverse(treenode, depth=0):
+            node, children = treenode
+            if isinstance(node, Group):
+                path = "/" if node.path == "/" else os.path.split(node.path)[1]
+                output.append('<li>{}{}'.format(ICON_GROUP, path))
+            else:
+                output.append('<li><img class="hurraynode" src="{}"/>{}'
+                              .format(ICON_DATASET, node._repr_html_()))
+            has_children = len(children) > 0
+            if has_children:
+                output.append("<ul>")
+            for child in children:
+                traverse(child, depth + 1)
+            if has_children:
+                output.append("</ul>")
+            output.append("</li>")
+
+        traverse(self)
+
+        output.append("</ul>")
 
         html = "".join(output)
 
-        return html
+        css = '<style type="text/css">{}</style>'.format(CSS_TREE)
+
+        return css + html
