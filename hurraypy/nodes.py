@@ -38,9 +38,11 @@ from hurraypy.protocol import (CMD_GET_NODE,
                                CMD_KW_PATH, CMD_CREATE_GROUP,
                                CMD_REQUIRE_GROUP, CMD_KW_KEY,
                                CMD_SLICE_DATASET, CMD_BROADCAST_DATASET,
-                               CMD_GET_KEYS, CMD_GET_TREE, RESPONSE_NODE_KEYS)
+                               CMD_GET_KEYS, CMD_GET_FILESIZE, CMD_GET_TREE,
+                               RESPONSE_NODE_KEYS)
 from hurraypy.status_codes import KEY_ERROR
-from .ipython import CSS_TREE, ICON_GROUP, ICON_DATASET
+from .ipython import (CSS_TREE, ICON_GROUP, ICON_DATASET, ICON_DATASET_ATTRS,
+                      ICON_GROUP_ATTRS, IMG_STYLE)
 
 
 class Node(object):
@@ -118,7 +120,7 @@ class Group(Node):
 
     def _repr_html_(self):
         """ representation in jupyter notebooks """
-        img = ICON_GROUP
+        img = ICON_GROUP_ATTRS if len(self.attrs) > 0 else ICON_GROUP
         return ("{}<strong>Group {}</strong> (file={})"
                 .format(img, self._path, self.conn.db))
 
@@ -291,6 +293,46 @@ class File(Group):
     def __exit__(self, *args):
         pass
 
+    def _repr_html_(self):
+        """ representation in jupyter notebooks """
+        txt = ("<strong>File {}</strong>"
+               .format(self.conn.db))
+        icon = ICON_GROUP_ATTRS if len(self.attrs) > 0 else ICON_GROUP
+        size = self.size_formatted()
+        return ('{}{} ({})'.format(icon, txt, size))
+
+    def size(self):
+        """
+        return file size in kB
+
+        Returns:
+            int (kB)
+        """
+        args = {}
+        result = self.conn.send_rcv(CMD_GET_FILESIZE, args)
+
+        return result[RESPONSE_DATA]
+
+    def size_formatted(self):
+        """
+        Return file size as a string. Example: "2.3G"
+        """
+        size = self.size()
+        if size > 1000000000000:  # terabytes
+            terabytes = size / 1000000000000
+            return '{0:.1f}T'.format(terabytes)
+        elif size > 1000000000:  # gigabytes
+            gigabytes = size / 1000000000
+            return '{0:.1f}G'.format(gigabytes)
+        elif size > 1000000:  # megabytes
+            megabytes = size / 1000000
+            return '{0:.1f}M'.format(megabytes)
+        elif size > 1000:  # kilobytes
+            kilobytes = size / 1000
+            return '{0:.0f}K'.format(kilobytes)
+        else:  # bytes
+            return '{0}b'.format(size)
+
 
 class Dataset(Node):
     """
@@ -303,15 +345,16 @@ class Dataset(Node):
         self.__dtype = dtype
 
     def __repr__(self):
-        return "<HDF5 Dataset (db={}, path={})>".format(self.conn.db,
-                                                        self._path)
+        return ("<Dataset {} {} (db={}, path={})>"
+                .format(self.shape, self.dtype, self.conn.db, self._path))
 
     def _repr_html_(self):
         """ representation in jupyter notebooks """
         txt = ("<strong>Dataset {} {} </strong> (file={}, path={})"
                .format(self.shape, self.dtype, self.conn.db, self._path))
-        return ('<img class="hurraynode" src="{}"/>{}'
-                .format(ICON_DATASET, txt))
+        icon = ICON_DATASET_ATTRS if len(self.attrs) > 0 else ICON_DATASET
+        return ('<img style="{}" src="{}"/>{}'
+                .format(IMG_STYLE, icon, txt))
 
     def __getitem__(self, key):
         """
@@ -405,6 +448,9 @@ class AttributeManager(object):
         result = self.conn.send_rcv(CMD_ATTRIBUTES_CONTAINS, args)
         return result[RESPONSE_DATA][RESPONSE_ATTRS_CONTAINS]
 
+    def __len__(self):
+        return len(self.keys())
+
     def __getitem__(self, key):
         """
         Get attribute value for given ``key``.
@@ -467,42 +513,52 @@ class AttributeManager(object):
 
 class Tree(list):
     """
-    list with special tree representation in jupyter notebooks and ipython
+    list with nice tree representation in jupyter notebooks and ipython
     """
 
     def __init__(self, members):
         super().__init__(members)
 
     def __str__(self):
-        """ tree representation """
+        """ text based tree representation """
         output = []
 
-        def traverse(treenode, depth=0):
+        def traverse(treenode, lastchild, depth, spaces):
             node, children = treenode
-            output.append("├{} {}\n".format("─" * (depth + 1), node.path))
-            for child in children:
-                traverse(child, depth + 1)
+            if depth == 0:
+                item = "──"
+            elif lastchild:
+                item = "└─"
+            else:
+                item = "├─"
+            if isinstance(node, Group):
+                txt = "/" if node.path == "/" else os.path.split(node.path)[1]
+            else:  # dataset
+                txt = node
+            output.append("{}{} {}".format("".join(spaces), item, txt))
+            spaces = spaces + ["    "] if lastchild else spaces + ["│   "]
+            last = len(children) - 1
+            for i, child in enumerate(children):
+                traverse(child, i == last, depth + 1, spaces)
 
-        traverse(self)
+        lastchild = len(self[1]) > 0
+        spaces = []
+        traverse(self, lastchild, 0, spaces)
 
-        output = "\n".join(output)
-
-        return output
+        return "\n".join(output)
 
     def __repr__(self):
         return self.__str__()
 
     def _repr_html_(self):
-        # TODO use a special icon for nodes that have attrs (as in hdfview
-        # tool)
-
         output = ['<ul class="hurraytree">\n']
 
         def traverse(treenode, depth=0):
             node, children = treenode
             if isinstance(node, Group):
                 path = "/" if node.path == "/" else os.path.split(node.path)[1]
-                output.append('<li>{}{}'.format(ICON_GROUP, path))
+                img = ICON_GROUP_ATTRS if len(node.attrs) > 0 else ICON_GROUP
+                output.append('<li>{}{}'.format(img, path))
             else:
                 output.append('<li>{}'.format(node._repr_html_()))
             has_children = len(children) > 0
@@ -517,9 +573,7 @@ class Tree(list):
         traverse(self)
 
         output.append("</ul>")
-
         html = "".join(output)
-
         css = '<style type="text/css">{}</style>'.format(CSS_TREE)
 
         return css + html

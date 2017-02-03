@@ -37,7 +37,7 @@ except ImportError as e:
 
 __all__ = ["connect", "__version__", "Dataset", "File", "Group"]
 
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 
 
 try:  # Python 2.7+
