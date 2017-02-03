@@ -118,8 +118,9 @@ class Group(Node):
 
     def _repr_html_(self):
         """ representation in jupyter notebooks """
-        return ("<strong>Group {}</strong> (file={})"
-                .format(self._path, self.conn.db))
+        img = ICON_GROUP
+        return ("{}<strong>Group {}</strong> (file={})"
+                .format(img, self._path, self.conn.db))
 
     def create_group(self, name):
         """
@@ -307,8 +308,10 @@ class Dataset(Node):
 
     def _repr_html_(self):
         """ representation in jupyter notebooks """
-        return ("<strong>Dataset {} {} </strong> (file={}, path={})"
-                .format(self.shape, self.dtype, self.conn.db, self._path))
+        txt = ("<strong>Dataset {} {} </strong> (file={}, path={})"
+               .format(self.shape, self.dtype, self.conn.db, self._path))
+        return ('<img class="hurraynode" src="{}"/>{}'
+                .format(ICON_DATASET, txt))
 
     def __getitem__(self, key):
         """
@@ -490,6 +493,8 @@ class Tree(list):
         return self.__str__()
 
     def _repr_html_(self):
+        # TODO use a special icon for nodes that have attrs (as in hdfview
+        # tool)
 
         output = ['<ul class="hurraytree">\n']
 
@@ -499,8 +504,7 @@ class Tree(list):
                 path = "/" if node.path == "/" else os.path.split(node.path)[1]
                 output.append('<li>{}{}'.format(ICON_GROUP, path))
             else:
-                output.append('<li><img class="hurraynode" src="{}"/>{}'
-                              .format(ICON_DATASET, node._repr_html_()))
+                output.append('<li>{}'.format(node._repr_html_()))
             has_children = len(children) > 0
             if has_children:
                 output.append("<ul>")
