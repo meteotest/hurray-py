@@ -542,8 +542,7 @@ class Tree(list):
                 traverse(child, i == last, depth + 1, spaces)
 
         lastchild = len(self[1]) > 0
-        spaces = []
-        traverse(self, lastchild, 0, spaces)
+        traverse(self, lastchild, 0, [])
 
         return "\n".join(output)
 
