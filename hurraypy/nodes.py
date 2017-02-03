@@ -34,6 +34,7 @@ from hurraypy.protocol import (CMD_GET_NODE,
                                CMD_ATTRIBUTES_SET, CMD_ATTRIBUTES_CONTAINS,
                                RESPONSE_ATTRS_CONTAINS, CMD_ATTRIBUTES_GET,
                                RESPONSE_ATTRS_KEYS, CMD_ATTRIBUTES_KEYS,
+                               RESPONSE_NODE_TREE,
                                CMD_KW_PATH, CMD_CREATE_GROUP,
                                CMD_REQUIRE_GROUP, CMD_KW_KEY,
                                CMD_SLICE_DATASET, CMD_BROADCAST_DATASET,
@@ -89,11 +90,9 @@ class Node(object):
         args = {
             CMD_KW_PATH: path,
         }
-        result = self._conn.send_rcv(CMD_GET_NODE, args)
+        result = self.conn.send_rcv(CMD_GET_NODE, args)
 
         node = result[RESPONSE_DATA]  # Group or Dataset
-        # TODO this is hacky
-        node.conn = self.conn
 
         return node
 
@@ -114,8 +113,12 @@ class Group(Node):
         Node.__init__(self, conn, path)
 
     def __repr__(self):
-        return "<HDF5 Group (db={}, path={})>".format(self._conn.db,
-                                                      self._path)
+        return "<Group (db={}, path={})>".format(self.conn.db, self._path)
+
+    def _repr_html_(self):
+        """ representation in jupyter notebooks """
+        return ("<strong>Group {}</strong> (file={})"
+                .format(self._path, self.conn.db))
 
     def create_group(self, name):
         """
@@ -132,8 +135,8 @@ class Group(Node):
         args = {
             CMD_KW_PATH: group_path,
         }
-        self._conn.send_rcv(CMD_CREATE_GROUP, args)
-        return Group(self._conn, group_path)
+        self.conn.send_rcv(CMD_CREATE_GROUP, args)
+        return Group(self.conn, group_path)
 
     def require_group(self, name):
         """
@@ -147,8 +150,8 @@ class Group(Node):
         args = {
             CMD_KW_PATH: group_path,
         }
-        self._conn.send_rcv(CMD_REQUIRE_GROUP, args)
-        return Group(self._conn, group_path)
+        self.conn.send_rcv(CMD_REQUIRE_GROUP, args)
+        return Group(self.conn, group_path)
 
     def create_dataset(self, name, **kwargs):
         """
@@ -177,11 +180,9 @@ class Group(Node):
         else:
             data = args["data"]
             del args["data"]
-        result = self._conn.send_rcv(CMD_CREATE_DATASET, args, data)
+        result = self.conn.send_rcv(CMD_CREATE_DATASET, args, data)
 
         dst = result["data"]  # Dataset
-        # TODO this is hacky
-        dst.conn = self.conn
 
         return dst
 
@@ -192,7 +193,7 @@ class Group(Node):
         args = {
             CMD_KW_PATH: self._path,
         }
-        result = self._conn.send_rcv(CMD_GET_KEYS, args)
+        result = self.conn.send_rcv(CMD_GET_KEYS, args)
 
         return result[RESPONSE_DATA][RESPONSE_NODE_KEYS]
 
@@ -219,44 +220,62 @@ class Group(Node):
         Returning anything else will immediately stop visiting and return that
         value from visit. Example::
 
-            >>> def find_foo(name):
-            ...     ''' Find first object with 'foo' anywhere in the name '''
+            >>> def find_foo(name, obj):
+            ...     ''' Find first object with 'foo' in its name '''
             ...     if 'foo' in name:
             ...         return name
-            >>> group.visit(find_foo)
+            >>> group.visititems(find_foo)
             'some/subgroup/foo'
 
         Args:
             func: callable
         """
-        args = {
-            CMD_KW_PATH: self._path,
-        }
         # get the whole (sub)tree of nodes from server
-        result = self._conn.send_rcv(CMD_GET_TREE, args)
-        print(result)
-        # TODO traverse tree recursively
+        tree = self.tree()
 
-        # if result[RESPONSE_NODE_TYPE] == NODE_TYPE_GROUP:
-        #     return Group(self._conn, path)
-        # elif result[RESPONSE_NODE_TYPE] == NODE_TYPE_DATASET:
-        #     # compatibility with numpy
-        #     shape = tuple(result[RESPONSE_NODE_SHAPE])
-        #     dtype = result[RESPONSE_NODE_DTYPE]
-        #     return Dataset(self._conn, path, shape=shape, dtype=dtype)
-        # else:
-        #     raise RuntimeError("server returned unknown node type")
+        # traverse tree recursively
+
+        def traverse(treenode):
+            node, children = treenode
+            func(node.path, node)
+            for child in children:
+                traverse(child)
+
+        traverse(tree)
+
+    def visit(self, func):
+        """
+        Like ``visititems()`` but ``func`` expects a callable with just one
+        argument::
+
+            func(name) -> None or return value
+        """
+        tree = self.tree()
+
+        def traverse(treenode):
+            node, children = treenode
+            func(node.path)
+            for child in children:
+                traverse(child)
+
+        traverse(tree)
 
     def tree(self):
         """
+        Return tree data structure consisting of all groups and datasets.
+        A tree node is defined recursively as a tuple:
+
+            [Dataset/Group, [children]]
+
+        Returns: list
         """
         args = {
             CMD_KW_PATH: self._path,
         }
-        # get the whole (sub)tree of nodes from server
-        result = self._conn.send_rcv(CMD_GET_TREE, args)
+        result = self.conn.send_rcv(CMD_GET_TREE, args)
+        tree = result[RESPONSE_DATA][RESPONSE_NODE_TREE]
 
-        return result
+        return Tree(tree)
 
 
 class File(Group):
@@ -281,6 +300,15 @@ class Dataset(Node):
         self.__shape = shape
         self.__dtype = dtype
 
+    def __repr__(self):
+        return "<HDF5 Dataset (db={}, path={})>".format(self.conn.db,
+                                                        self._path)
+
+    def _repr_html_(self):
+        """ representation in jupyter notebooks """
+        return ("<strong>Dataset {} {} </strong> (file={}, path={})"
+                .format(self.shape, self.dtype, self.conn.db, self._path))
+
     def __getitem__(self, key):
         """
         Multidimensional slicing for datasets
@@ -300,7 +328,7 @@ class Dataset(Node):
             CMD_KW_PATH: self.path,
             CMD_KW_KEY: key
         }
-        result = self._conn.send_rcv(CMD_SLICE_DATASET, args)
+        result = self.conn.send_rcv(CMD_SLICE_DATASET, args)
         return result[RESPONSE_DATA]
 
     def __setitem__(self, key, value):
@@ -311,7 +339,7 @@ class Dataset(Node):
             CMD_KW_PATH: self.path,
             CMD_KW_KEY: key,
         }
-        self._conn.send_rcv(CMD_BROADCAST_DATASET, args, value)
+        self.conn.send_rcv(CMD_BROADCAST_DATASET, args, value)
 
     @property
     def shape(self):
@@ -362,7 +390,7 @@ class AttributeManager(object):
         args = {
             CMD_KW_PATH: self.__path,
         }
-        result = self.__conn.send_rcv(CMD_ATTRIBUTES_KEYS, args)
+        result = self.conn.send_rcv(CMD_ATTRIBUTES_KEYS, args)
         return result[RESPONSE_DATA][RESPONSE_ATTRS_KEYS]
 
     def __contains__(self, key):
@@ -370,7 +398,7 @@ class AttributeManager(object):
             CMD_KW_PATH: self.__path,
             CMD_KW_KEY: key,
         }
-        result = self.__conn.send_rcv(CMD_ATTRIBUTES_CONTAINS, args)
+        result = self.conn.send_rcv(CMD_ATTRIBUTES_CONTAINS, args)
         return result[RESPONSE_DATA][RESPONSE_ATTRS_CONTAINS]
 
     def __getitem__(self, key):
@@ -384,7 +412,7 @@ class AttributeManager(object):
             CMD_KW_PATH: self.__path,
             CMD_KW_KEY: key,
         }
-        result = self.__conn.send_rcv(CMD_ATTRIBUTES_GET, args)
+        result = self.conn.send_rcv(CMD_ATTRIBUTES_GET, args)
         return result[RESPONSE_DATA]
 
     def __setitem__(self, key, value):
@@ -397,7 +425,7 @@ class AttributeManager(object):
             CMD_KW_KEY: key,
         }
 
-        self.__conn.send_rcv(CMD_ATTRIBUTES_SET, args, value)
+        self.conn.send_rcv(CMD_ATTRIBUTES_SET, args, value)
 
     def __delitem__(self, key):
         raise NotImplementedError()
@@ -416,7 +444,7 @@ class AttributeManager(object):
         }
 
         try:
-            response = self.__conn.send_rcv(CMD_ATTRIBUTES_GET, args)
+            response = self.conn.send_rcv(CMD_ATTRIBUTES_GET, args)
             result = response[RESPONSE_DATA]
         except NodeError as ne:
             if ne.status == KEY_ERROR:
@@ -431,3 +459,30 @@ class AttributeManager(object):
         Return attributes as dict
         """
         raise NotImplementedError()
+
+
+class Tree(list):
+    """
+    list with special tree representation in jupyter notebooks and ipython
+    """
+
+    def __init__(self, members):
+        super().__init__(members)
+
+    def _repr_html_(self):
+
+        output = ["<pre>"]
+
+        def traverse(treenode, depth=0):
+            node, children = treenode
+            output.append("├{} {}\n".format("─" * (depth + 1), node.path))
+            for child in children:
+                traverse(child, depth + 1)
+
+        traverse(self)
+
+        output.append("</pre>")
+
+        html = "".join(output)
+
+        return html

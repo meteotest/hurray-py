@@ -40,9 +40,14 @@ from .protocol import (RESPONSE_NODE_TYPE, NODE_TYPE_GROUP,
 
 def encode(obj):
     """
-    Encode numpy arrays and slices
-    :param obj: object to serialize
-    :return: dictionary with encoded array or slice
+    Encode numpy arrays and slices. Also converts numpy scalars and dtypes
+    to pure Python objects.
+
+    Args:
+        obj: object to serialize
+
+    Returns:
+        dictionary or Python scalar
     """
     if isinstance(obj, np.ndarray):
         arr = header_data_from_array_1_0(obj)
@@ -66,32 +71,45 @@ def encode(obj):
     return obj
 
 
-def decode(obj):
+def get_decoder(connection):
     """
-    Decode numpy arrays and slices
-    :param obj: object to decode
-    :return: numpy array or slice
+    Returns a msgpack decoder function, using ``connection`` to create proper
+    ``Group`` and ``Dataset`` objects.
+
+    Args:
+        connection: Connection object that is assigned to decoded groups and
+            datasets
+
+    Returns:
+        msgpack decoder function
     """
 
-    if '__ndarray__' in obj:
-        arr = np.fromstring(obj['arraydata'], dtype=np.dtype(obj['descr']))
-        shape = obj[RESPONSE_NODE_SHAPE]
-        arr.shape = shape
-        if obj['fortran_order']:
-            arr.shape = shape[::-1]
-            arr = arr.transpose()
-        return arr
-    elif '__slice__' in obj:
-        return slice(*obj['__slice__'])
-    elif (isinstance(obj, dict)
-          and obj.get(RESPONSE_NODE_TYPE, None) == NODE_TYPE_GROUP):
-        # convert to Group object
-        return Group(conn=None, path=obj[RESPONSE_NODE_PATH])
-    elif (isinstance(obj, dict)
-          and obj.get(RESPONSE_NODE_TYPE, None) == NODE_TYPE_DATASET):
-        # convert to Dataset object
-        return Dataset(conn=None, path=obj[RESPONSE_NODE_PATH],
-                       shape=obj[RESPONSE_NODE_SHAPE],
-                       dtype=obj[RESPONSE_NODE_DTYPE])
+    def decode(obj):
+        """
+        msgpack decoder
+        """
 
-    return obj
+        if '__ndarray__' in obj:
+            arr = np.fromstring(obj['arraydata'], dtype=np.dtype(obj['descr']))
+            shape = obj[RESPONSE_NODE_SHAPE]
+            arr.shape = shape
+            if obj['fortran_order']:
+                arr.shape = shape[::-1]
+                arr = arr.transpose()
+            return arr
+        elif '__slice__' in obj:
+            return slice(*obj['__slice__'])
+        elif (isinstance(obj, dict)
+              and obj.get(RESPONSE_NODE_TYPE, None) == NODE_TYPE_GROUP):
+            # convert to Group object
+            return Group(conn=connection, path=obj[RESPONSE_NODE_PATH])
+        elif (isinstance(obj, dict)
+              and obj.get(RESPONSE_NODE_TYPE, None) == NODE_TYPE_DATASET):
+            # convert to Dataset object
+            return Dataset(conn=connection, path=obj[RESPONSE_NODE_PATH],
+                           shape=obj[RESPONSE_NODE_SHAPE],
+                           dtype=obj[RESPONSE_NODE_DTYPE])
+
+        return obj
+
+    return decode

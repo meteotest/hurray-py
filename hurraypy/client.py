@@ -34,39 +34,11 @@ import msgpack
 from hurraypy.exceptions import (MessageError, DatabaseError, NodeError,
                                  ServerError)
 from hurraypy.log import log
-from hurraypy.msgpack_ext import decode, encode
-from hurraypy.nodes import File
+from hurraypy.msgpack_ext import get_decoder, encode
+from hurraypy.nodes import File, Node
 from hurraypy.protocol import (CMD_CREATE_DATABASE, CMD_KW_STATUS, CMD_KW_DB,
                                CMD_USE_DATABASE, CMD_KW_CMD, CMD_KW_ARGS,
                                CMD_KW_DATA, MSG_LEN, PROTOCOL_VER)
-
-
-def _recv(reader):
-    """
-    Receive and decode message
-
-    Args:
-        reader: StreamReader object
-
-    Returns:
-        Tuple (result, array), where result is a dict and array is either a
-        numpy array or None.
-    """
-    # read protocol version
-    protocol_ver = yield from reader.readexactly(MSG_LEN)
-    protocol_ver = struct.unpack('>I', protocol_ver)[0]
-
-    # Read message length (4 bytes) and unpack it into an integer
-    raw_msg_length = yield from reader.readexactly(MSG_LEN)
-    msg_length = struct.unpack('>I', raw_msg_length)[0]
-    log.debug("Handle request (Protocol: v%d, Msg size: %d)",
-              protocol_ver, msg_length)
-
-    msg_data = yield from reader.readexactly(msg_length)
-
-    # decode message
-    return msgpack.unpackb(msg_data, object_hook=decode,
-                           use_list=False, encoding='utf-8')
 
 
 class Connection:
@@ -163,6 +135,40 @@ class Connection:
 
         return File(conn=self, path='/')
 
+    def _recv(self, reader):
+        """
+        Receive and decode message
+
+        Args:
+            reader: StreamReader object
+
+        Returns:
+            Tuple (result, array), where result is a dict and array is either a
+            numpy array or None.
+        """
+        # read protocol version
+        protocol_ver = yield from reader.readexactly(MSG_LEN)
+        protocol_ver = struct.unpack('>I', protocol_ver)[0]
+
+        # Read message length (4 bytes) and unpack it into an integer
+        raw_msg_length = yield from reader.readexactly(MSG_LEN)
+        msg_length = struct.unpack('>I', raw_msg_length)[0]
+        log.debug("Handle request (Protocol: v%d, Msg size: %d)",
+                  protocol_ver, msg_length)
+
+        msg_data = yield from reader.readexactly(msg_length)
+
+        # decode message
+        result = msgpack.unpackb(msg_data, object_hook=get_decoder(self),
+                                 use_list=False, encoding='utf-8')
+
+        # if result contains a Node => set node.conn = self.conn
+        # TODO make this cleaner
+        if "data" in result and isinstance(result["data"], Node):
+            result["data"].conn = self
+
+        return result
+
     @asyncio.coroutine
     def __send_rcv(self, cmd, args, data):
         """
@@ -182,7 +188,7 @@ class Connection:
         self.__writer.write(msg)
 
         # receive answer from server
-        result = yield from _recv(self.__reader)
+        result = yield from self._recv(self.__reader)
 
         return result
 

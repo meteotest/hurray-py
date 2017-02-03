@@ -21,22 +21,20 @@ class IntegrationTest(unittest.TestCase):
     testing
     """
 
-    def operations(self, conn):
-        """
-        test basic operations
-        """
+    def setUp(self):
+        self.conn = hp.connect('localhost', '2222')
+        # self.uds_conn = hp.connect(unix_socket_path='/tmp/hurray.socket')
+
         # create a file
         db_name = 'htest-' + random_name(5) + '.h5'
-        conn.create_file(db_name)
-        self.db = conn.use_file(db_name)
+        self.conn.create_file(db_name)
+        self.db = self.conn.use_file(db_name)
 
-        self.group_operations()
+    def tearDown(self):
+        pass
+        # TODO delete self.db
 
-        self.dataset_operations()
-
-        self.attr_operations()
-
-    def group_operations(self):
+    def test_group_operations(self):
         db = self.db
         # create and get a group
         db.create_group("/mygrp")
@@ -50,7 +48,7 @@ class IntegrationTest(unittest.TestCase):
         self.assertEqual(db["/mygrp"].keys(),
                          ("subgrp", "subgrp2"))
 
-    def dataset_operations(self):
+    def test_dataset_operations(self):
         db = self.db
 
         array_name = 'myarray'
@@ -71,7 +69,7 @@ class IntegrationTest(unittest.TestCase):
         dataset[0, :] = x
         assert_array_equal(np.array([x, data[1]]), dataset[:])
 
-    def attr_operations(self):
+    def test_attr_operations(self):
         db = self.db
 
         data = np.array([[1, 2, 3], [4, 5, 6]])
@@ -93,10 +91,20 @@ class IntegrationTest(unittest.TestCase):
         dataset.attrs['num'] = attr_value_array
         assert_array_equal(dataset.attrs['num'], attr_value_array)
 
-    def test_tcp(self):
-        conn = hp.connect('localhost', '2222')
-        self.operations(conn)
+    def test_special_operations(self):
+        db = self.db
 
-    def _test_socket(self):
-        conn = hp.connect(unix_socket_path='/tmp/hurray.socket')
-        self.operations(conn)
+        db.require_group("/mygrp/subgrp/subsubgrp")
+        db.require_group("/mygrp/subgrp2")
+        db.create_dataset("/mygrp/mydataset",
+                          data=np.random.random((200, 300)))
+
+        def itemvisitor(name, node):
+            print(name, node)
+
+        db.visititems(itemvisitor)
+
+        def visitor(name):
+            print(name)
+
+        db.visit(visitor)
