@@ -57,7 +57,6 @@ class IntegrationTest(unittest.TestCase):
 
         data = np.array([[1, 2, 3], [4, 5, 6]])
         ds = grp.create_dataset(array_name, data=data)
-
         self.assertEqual(ds.path, array_path)
 
         dataset = db[array_path]
@@ -68,6 +67,14 @@ class IntegrationTest(unittest.TestCase):
         x = np.array([8, 9, 10])
         dataset[0, :] = x
         assert_array_equal(np.array([x, data[1]]), dataset[:])
+
+        # test require_dataset()
+        import ipdb; ipdb.set_trace()
+        dst = grp.require_dataset("myarray2", data=data)
+        dst = grp.require_dataset("myarray2", data=data)
+        self.assertEqual(ds.path, array_path)
+        assert_array_equal(data, dst[:])
+        assert_array_equal(data[1], dst[1])
 
     def test_attr_operations(self):
         db = self.db

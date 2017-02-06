@@ -30,12 +30,13 @@ import os
 
 from hurraypy.exceptions import NodeError
 from hurraypy.protocol import (CMD_GET_NODE,
-                               CMD_CREATE_DATASET, RESPONSE_DATA,
-                               CMD_ATTRIBUTES_SET, CMD_ATTRIBUTES_CONTAINS,
+                               CMD_CREATE_DATASET, CMD_REQUIRE_DATASET,
+                               RESPONSE_DATA, CMD_ATTRIBUTES_SET,
+                               CMD_ATTRIBUTES_CONTAINS,
                                RESPONSE_ATTRS_CONTAINS, CMD_ATTRIBUTES_GET,
                                RESPONSE_ATTRS_KEYS, CMD_ATTRIBUTES_KEYS,
-                               RESPONSE_NODE_TREE,
-                               CMD_KW_PATH, CMD_CREATE_GROUP,
+                               RESPONSE_NODE_TREE, CMD_KW_PATH, CMD_KW_SHAPE,
+                               CMD_KW_DTYPE, CMD_CREATE_GROUP,
                                CMD_REQUIRE_GROUP, CMD_KW_KEY,
                                CMD_SLICE_DATASET, CMD_BROADCAST_DATASET,
                                CMD_GET_KEYS, CMD_GET_FILESIZE, CMD_GET_TREE,
@@ -173,6 +174,9 @@ class Group(Node):
 
         Raises:
             ValueError is dataset already exists
+
+        Returns:
+            ``Dataset`` object
         """
         dst_path = self._compose_path(name)
         args = {
@@ -190,8 +194,61 @@ class Group(Node):
 
         return dst
 
-    def require_dataset(self, **kwargs):
-        raise NotImplementedError()
+    def require_dataset(self, name, **kwargs):
+        """
+        Open a dataset, creating it if it doesn’t exist.
+
+        If keyword ``exact`` is False (default), an existing dataset must have
+        the same shape and a conversion-compatible dtype to be returned. If
+        True, the shape and dtype must match exactly.
+
+        Other dataset keywords (see ``create_dataset()``) may be provided, but
+        are only used if a new dataset is to be created.
+
+        Raises:
+            TypeError if an incompatible object already exists, or if the shape
+            or dtype don't match according to the above rules.
+
+        Args:
+            name: name or path of the dataset
+            data: numpy array
+            shape: tuple denoting the shape of the array to be created
+            dtype: data type (string or numpy type, e.g., ``np.float64``)
+            exact: Require shape and type to match exactly?
+
+        Returns:
+            ``Dataset`` object
+
+        Raises:
+            ``ValueError`` in case of invalid arguments.
+            ``MessageError`` if an incompatible object already exists, or if
+            the shape or dtype don’t match according to the above rules.
+        """
+        data = kwargs.get("data", None)
+        shape = kwargs.get("shape", None)
+        dtype = kwargs.get("dtype", None)
+
+        if data is None:
+            if shape is None or dtype is None:
+                raise ValueError("missing arguments: 'shape' and 'dtype'")
+        else:
+            if shape is None:
+                shape = data.shape
+            if dtype is None:
+                dtype = data.dtype
+
+        dst_path = self._compose_path(name)
+        args = {
+            CMD_KW_PATH: dst_path,
+            CMD_KW_SHAPE: shape,
+            CMD_KW_DTYPE: dtype,
+        }
+        args.update(kwargs)
+        del args["data"]  # data must not be a part of ``args``
+        result = self.conn.send_rcv(CMD_REQUIRE_DATASET, args, data)
+        dst = result["data"]  # Dataset
+
+        return dst
 
     def keys(self):
         args = {

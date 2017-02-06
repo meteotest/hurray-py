@@ -33,6 +33,7 @@ UNKNOWN_COMMAND = 200
 MISSING_ARGUMENT = 201
 INVALID_ARGUMENT = 202
 MISSING_DATA = 203
+INCOMPATIBLE_DATA = 204  # incompatible shape and/or dtype
 
 # 3xx: Database Error
 FILE_EXISTS = 300
@@ -51,6 +52,7 @@ INTERNAL_SERVER_ERROR = 500
 NOT_IMPLEMENTED = 501
 
 
+# translate status code to human readable text
 STATUS_MSGS = {
     OK: "OK",
     CREATED: "resource successfully created",
@@ -60,6 +62,7 @@ STATUS_MSGS = {
     MISSING_ARGUMENT: "missing argument",
     INVALID_ARGUMENT: "invalid argument",
     MISSING_DATA: "missing data",
+    INCOMPATIBLE_DATA: "incompatible dtype and/or shape ",
 
     FILE_EXISTS: "file already exists",
     FILE_NOT_FOUND: "file not found",
