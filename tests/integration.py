@@ -69,7 +69,6 @@ class IntegrationTest(unittest.TestCase):
         assert_array_equal(np.array([x, data[1]]), dataset[:])
 
         # test require_dataset()
-        import ipdb; ipdb.set_trace()
         dst = grp.require_dataset("myarray2", data=data)
         dst = grp.require_dataset("myarray2", data=data)
         self.assertEqual(ds.path, array_path)
