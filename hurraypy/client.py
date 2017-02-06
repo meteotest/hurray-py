@@ -23,7 +23,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-Hfive Python Client, DB connection interface
+hurray Python client, connection interface
 """
 
 import asyncio
@@ -33,12 +33,12 @@ import msgpack
 
 from hurraypy.exceptions import (MessageError, DatabaseError, NodeError,
                                  ServerError)
-from hurraypy.log import log
-from hurraypy.msgpack_ext import get_decoder, encode
-from hurraypy.nodes import File, Node
-from hurraypy.protocol import (CMD_CREATE_DATABASE, CMD_KW_STATUS, CMD_KW_DB,
-                               CMD_KW_OVERWRITE, CMD_USE_DATABASE, CMD_KW_CMD,
-                               CMD_KW_ARGS, CMD_KW_DATA, MSG_LEN, PROTOCOL_VER)
+from .log import log
+from .msgpack_ext import get_decoder, encode
+from .nodes import File, Node
+from .protocol import (CMD_CREATE_DATABASE, CMD_KW_STATUS, CMD_KW_DB,
+                       CMD_KW_OVERWRITE, CMD_USE_DATABASE, CMD_KW_CMD,
+                       CMD_KW_ARGS, CMD_KW_DATA, MSG_LEN, PROTOCOL_VER)
 
 
 class Connection:
@@ -48,11 +48,13 @@ class Connection:
 
     def __init__(self, host, port, db=None, unix_socket_path=None):
         """
+        Initialize a connection to a hurray server
 
-        :param host:
-        :param port:
-        :param db:
-        :param unix_socket_path:
+        Args:
+            host: hostname of IP
+            port: TCP port
+            db: file to be used
+            unix_socket_path: path to unix domain socket
         """
         self.__loop = asyncio.get_event_loop()
         self.__host = host
@@ -72,10 +74,14 @@ class Connection:
     def __connect_tcp(self, host, port):
         """
         Create TCP connection
-        :param host:
-        :param port:
-        :return: The reader returned is a StreamReader instance; the writer is
-        a StreamWriter instance.
+
+        Args:
+            host: hostname of IP
+            port: TCP port
+
+        Returns:
+            The reader returned is a StreamReader instance; the writer is
+            a StreamWriter instance.
         """
         reader, writer = yield from asyncio.open_connection(host, port)
         return reader, writer
@@ -84,9 +90,13 @@ class Connection:
     def __connect_socket(self, socket_path):
         """
         Create UNIX Domain Sockets connection
-        :param socket_path:
-        :return: The reader returned is a StreamReader instance; the writer is
-        a StreamWriter instance.
+
+        Args:
+            unix_socket_path: path to unix domain socket
+
+        Returns:
+            The reader returned is a StreamReader instance; the writer is
+            a StreamWriter instance.
         """
         reader, writer = yield from asyncio.open_unix_connection(socket_path)
         return reader, writer
@@ -119,8 +129,11 @@ class Connection:
             CMD_KW_OVERWRITE: overwrite,
         }
         self.send_rcv(CMD_CREATE_DATABASE, args)
+        self.__db = name
 
-    def use_file(self, dbname, mode="w"):
+        return File(conn=self, path='/')
+
+    def use_file(self, name, mode="w"):
         """
         Use an hdf5 file
 
@@ -135,8 +148,8 @@ class Connection:
             DatabaseError if ``dbname`` does not exist
         """
         # TODO implement mode
-        self.send_rcv(CMD_USE_DATABASE, {CMD_KW_DB: dbname})
-        self.__db = dbname
+        self.send_rcv(CMD_USE_DATABASE, {CMD_KW_DB: name})
+        self.__db = name
 
         return File(conn=self, path='/')
 
@@ -243,10 +256,12 @@ def connect(host='localhost', port=2222, db=None, unix_socket_path=None):
     """
     Creates and returns a database connection object.
 
-    :param host: hostname or IP address.
-    :param port: TCP port.
-    :param db: database name.
-    :param unix_socket_path: Unix domain socket path.
-    :return: database connection.
+    Args:
+        host: hostname or IP address
+        port: TCP port
+        db: database name
+        unix_socket_path: Unix domain socket path
+
+    Returns: database connection.
     """
     return Connection(host, port, db, unix_socket_path)
