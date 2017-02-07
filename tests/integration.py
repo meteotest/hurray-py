@@ -6,7 +6,7 @@ import os
 import numpy as np
 from numpy.testing import assert_array_equal
 
-import hurraypy as hp
+import hurraypy as hrr
 
 
 def random_name(l):
@@ -22,8 +22,8 @@ class IntegrationTest(unittest.TestCase):
     """
 
     def setUp(self):
-        self.conn = hp.connect('localhost', '2222')
-        # self.uds_conn = hp.connect(unix_socket_path='/tmp/hurray.socket')
+        self.conn = hrr.connect('localhost', '2222')
+        # self.uds_conn = hrr.connect(unix_socket_path='/tmp/hurray.socket')
 
         # create a file
         db_name = 'htest-' + random_name(5) + '.h5'
