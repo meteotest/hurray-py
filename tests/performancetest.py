@@ -1,7 +1,7 @@
 """
 Compare hurray performance with h5py performance.
 
-Make sure to install h5py to run these tests.
+Make sure to install h5py and h5pySWMR to run these tests.
 """
 
 import random
@@ -12,6 +12,7 @@ import timeit
 
 import numpy as np
 import h5py
+import h5pyswmr
 
 if __name__ == "__main__":
     here = os.path.dirname(os.path.realpath(__file__))
@@ -39,23 +40,32 @@ def main():
         secs_h5py = timeit.timeit("test('h5py', '{}')".format(testcase),
                                   number=repetitions,
                                   setup="from __main__ import test")
+        secs_h5pyswmr = timeit.timeit("test('h5pyswmr', '{}')"
+                                      .format(testcase),
+                                      number=repetitions,
+                                      setup="from __main__ import test")
         print("\ntest case '{}'".format(testcase))
         print("#####################\n")
         print("Total running time for {} repetitions:".format(repetitions))
         print("hurray TCP:\t{:.2f} seconds".format(secs_hurray))
         print("hurray UDS:\t{:.2f} seconds".format(secs_hurray_uds))
         print("plain h5py:\t{:.2f} seconds".format(secs_h5py))
+        print("h5pySWMR:\t{:.2f} seconds".format(secs_h5pyswmr))
         print("=> h5py was ~{:.0f} times faster than hurray over TCP"
               .format(secs_hurray / secs_h5py))
         print("=> h5py was ~{:.0f} times faster than hurray over UDS"
               .format(secs_hurray_uds / secs_h5py))
+        print("=> h5pyswmr was ~{:.0f} times faster than hurray over TCP"
+              .format(secs_hurray / secs_h5pyswmr))
+        print("=> h5pyswmr was ~{:.0f} times faster than hurray over UDS"
+              .format(secs_hurray_uds / secs_h5pyswmr))
 
 
 def test(engine, testcase="bigdata"):
     """
     Args:
         engine: either "hurray", "hurray_uds" (hurray over unix domain
-            sockets) or "h5py"
+            sockets), "h5py", or "h5pyswmr"
         testcase: test with either "bigdata" or "smalldata"
     """
     if testcase == "bigdata":
@@ -76,6 +86,9 @@ def test(engine, testcase="bigdata"):
     elif engine == "h5py":
         filename = os.path.join("/tmp/", filename)
         file_ = h5py.File(filename)
+    elif engine == "h5pyswmr":
+        filename = os.path.join("/tmp/", filename)
+        file_ = h5pyswmr.File(filename)
     else:
         raise ValueError("unknown engine")
 
@@ -85,12 +98,12 @@ def test(engine, testcase="bigdata"):
         file_.create_group("/mygrp{}".format(i))
         file_.require_group("/mygrp{}/subgrp/subsubgrp".format(i))
         array_path = "/datagrp/myarray{}".format(i)
-        dst = file_.create_dataset(array_path, data=data)
+        dst = file_.create_dataset(name=array_path, data=data)
         dst.attrs["unit"] = "meters"
 
         data = dst[:]
 
-    if engine == "h5py":
+    if engine == "h5py" or engine == "h5pyswmr":
         os.unlink(filename)
 
 
