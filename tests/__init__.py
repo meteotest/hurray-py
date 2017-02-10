@@ -7,9 +7,9 @@ def get_tests():
 
 def full_suite():
     from .msgpack_ext import MsgPackTestCase
-    from .nodes import NodeTestCase
+    #from .nodes import NodeTestCase
 
     msgpack_suite = unittest.TestLoader().loadTestsFromTestCase(MsgPackTestCase)
-    node_suite = unittest.TestLoader().loadTestsFromTestCase(NodeTestCase)
+    #node_suite = unittest.TestLoader().loadTestsFromTestCase(NodeTestCase)
 
-    return unittest.TestSuite([msgpack_suite, node_suite])
+    return unittest.TestSuite([msgpack_suite,])
