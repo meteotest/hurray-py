@@ -26,11 +26,12 @@
 hurray Python client, connection interface
 """
 
-import asyncio
+import socket
 import struct
 
 import msgpack
 
+from hurraypy.buffer import Buffer
 from hurraypy.exceptions import (MessageError, DatabaseError, NodeError,
                                  ServerError)
 from .log import log
@@ -46,7 +47,7 @@ class Connection:
     Connection to an hfive server and database/file
     """
 
-    def __init__(self, host, port, db=None, unix_socket_path=None):
+    def __init__(self, host, port, db=None, unix_socket_path=None, no_delay=True):
         """
         Initialize a connection to a hurray server
 
@@ -55,51 +56,22 @@ class Connection:
             port: TCP port
             db: file to be used
             unix_socket_path: path to unix domain socket
+            no_delay: enabe
         """
-        self.__loop = asyncio.get_event_loop()
         self.__host = host
         self.__port = port
         self.__db = db
-        self.__reader, self.__writer = self._connect(host, port,
-                                                     unix_socket_path)
 
-    def _connect(self, host, port, unix_socket_path):
         if unix_socket_path:
-            conn = self.__connect_socket(unix_socket_path)
+            self.__socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.__socket.connect(unix_socket_path)
         else:
-            conn = self.__connect_tcp(host, port)
-        return self.__loop.run_until_complete(conn)
+            self.__socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            if no_delay:
+                self.__socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            self.__socket.connect((host, int(port)))
 
-    @asyncio.coroutine
-    def __connect_tcp(self, host, port):
-        """
-        Create TCP connection
-
-        Args:
-            host: hostname of IP
-            port: TCP port
-
-        Returns:
-            The reader returned is a StreamReader instance; the writer is
-            a StreamWriter instance.
-        """
-        reader, writer = yield from asyncio.open_connection(host, port)
-        return reader, writer
-
-    @asyncio.coroutine
-    def __connect_socket(self, socket_path):
-        """
-        Create UNIX Domain Sockets connection
-
-        Args:
-            unix_socket_path: path to unix domain socket
-
-        Returns:
-            The reader returned is a StreamReader instance; the writer is
-            a StreamWriter instance.
-        """
-        reader, writer = yield from asyncio.open_unix_connection(socket_path)
-        return reader, writer
+        self.__buffer = Buffer(self.__socket)
 
     def __enter__(self):
         """
@@ -108,7 +80,7 @@ class Connection:
         return self
 
     def __exit__(self, type, value, tb):
-        pass
+        self.__buffer.close()
 
     def create_file(self, name, overwrite=False):
         """
@@ -153,28 +125,25 @@ class Connection:
 
         return File(conn=self, path='/')
 
-    def _recv(self, reader):
+    def _recv(self):
         """
         Receive and decode message
-
-        Args:
-            reader: StreamReader object
 
         Returns:
             Tuple (result, array), where result is a dict and array is either a
             numpy array or None.
         """
         # read protocol version
-        protocol_ver = yield from reader.readexactly(MSG_LEN)
+        protocol_ver = self.__buffer.read_bytes(MSG_LEN)
         protocol_ver = struct.unpack('>I', protocol_ver)[0]
 
         # Read message length (4 bytes) and unpack it into an integer
-        raw_msg_length = yield from reader.readexactly(MSG_LEN)
+        raw_msg_length = self.__buffer.read_bytes(MSG_LEN)
         msg_length = struct.unpack('>I', raw_msg_length)[0]
         log.debug("Handle request (Protocol: v%d, Msg size: %d)",
                   protocol_ver, msg_length)
 
-        msg_data = yield from reader.readexactly(msg_length)
+        msg_data = self.__buffer.read_bytes(msg_length)
 
         # decode message
         result = msgpack.unpackb(msg_data, object_hook=get_decoder(self),
@@ -187,7 +156,6 @@ class Connection:
 
         return result
 
-    @asyncio.coroutine
     def __send_rcv(self, cmd, args, data):
         """
         """
@@ -199,20 +167,14 @@ class Connection:
 
         log.debug("Sending %d bytes...", len(msg))
         # Prefix message with protocol version
-        self.__writer.write(struct.pack('>I', PROTOCOL_VER))
+        rsp = struct.pack('>I', PROTOCOL_VER)
         # Prefix each message with a 4-byte length (network byte order)
-        self.__writer.write(struct.pack('>I', len(msg)))
-        # send metadata
-        self.__writer.write(msg)
+        rsp += struct.pack('>I', len(msg))
+        rsp += msg
+        self.__buffer.write(rsp)
 
         # receive answer from server
-        result = yield from self._recv(self.__reader)
-
-        return result
-
-    def _run(self, cmd, args, data):
-        send_rcv_coroutine = self.__send_rcv(cmd, args, data)
-        return self.__loop.run_until_complete(send_rcv_coroutine)
+        return self._recv()
 
     def send_rcv(self, cmd, args, data=None):
         """
@@ -226,9 +188,12 @@ class Connection:
         Returns:
             Tuple (result, array)
         """
+
         if CMD_KW_DB not in args:
             args[CMD_KW_DB] = self.__db
-        result = self._run(cmd, args, data)
+
+        result = self.__send_rcv(cmd, args, data)
+
         status = result[CMD_KW_STATUS]
 
         # Handle errors
