@@ -105,7 +105,7 @@ class Connection:
 
         return File(conn=self, path='/')
 
-    def use_file(self, name, mode="w"):
+    def File(self, name, mode="w"):
         """
         Use an hdf5 file
 
