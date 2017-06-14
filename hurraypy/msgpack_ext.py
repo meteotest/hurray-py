@@ -33,7 +33,7 @@ import numpy as np
 from numpy.lib.format import header_data_from_array_1_0
 
 from .nodes import Group, Dataset
-from .protocol import (RESPONSE_NODE_TYPE, NODE_TYPE_GROUP,
+from .protocol import (RESPONSE_H5FILE, RESPONSE_NODE_TYPE, NODE_TYPE_GROUP,
                        NODE_TYPE_DATASET, RESPONSE_NODE_SHAPE,
                        RESPONSE_NODE_DTYPE, RESPONSE_NODE_PATH)
 
@@ -102,11 +102,13 @@ def get_decoder(connection):
         elif (isinstance(obj, dict)
               and obj.get(RESPONSE_NODE_TYPE, None) == NODE_TYPE_GROUP):
             # convert to Group object
-            return Group(conn=connection, path=obj[RESPONSE_NODE_PATH])
+            return Group(conn=connection, h5file=obj[RESPONSE_H5FILE],
+                         path=obj[RESPONSE_NODE_PATH])
         elif (isinstance(obj, dict)
               and obj.get(RESPONSE_NODE_TYPE, None) == NODE_TYPE_DATASET):
             # convert to Dataset object
-            return Dataset(conn=connection, path=obj[RESPONSE_NODE_PATH],
+            return Dataset(conn=connection, h5file=obj[RESPONSE_H5FILE],
+                           path=obj[RESPONSE_NODE_PATH],
                            shape=obj[RESPONSE_NODE_SHAPE],
                            dtype=obj[RESPONSE_NODE_DTYPE])
 

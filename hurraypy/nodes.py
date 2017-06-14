@@ -51,16 +51,18 @@ class Node(object):
     HDF5 node
     """
 
-    def __init__(self, conn, path):
+    def __init__(self, conn, h5file, path):
         """
         Args:
-            conn: Connection object
+            conn: ``Connection`` object
+            h5file: name of hdf5 file this node belongs to
             path: full path to the hdf5 node
         """
         self._conn = conn
+        self._h5file = h5file
         self._path = path
         # every node has an attrs property
-        self.attrs = AttributeManager(self._conn, self._path)
+        self.attrs = AttributeManager(conn=conn, h5file=h5file, path=path)
 
     @property
     def conn(self):
@@ -70,6 +72,10 @@ class Node(object):
     def conn(self, value):
         self._conn = value
         self.attrs.conn = value
+
+    @property
+    def h5file(self):
+        return self._h5file
 
     def _compose_path(self, name):
         """
@@ -94,7 +100,8 @@ class Node(object):
         args = {
             CMD_KW_PATH: path,
         }
-        result = self.conn.send_rcv(CMD_GET_NODE, args)
+        result = self.conn.send_rcv(CMD_GET_NODE, h5file=self.h5file,
+                                    args=args)
 
         node = result[RESPONSE_DATA]  # Group or Dataset
 
@@ -113,17 +120,17 @@ class Group(Node):
     HDF5 group
     """
 
-    def __init__(self, conn, path):
-        Node.__init__(self, conn, path)
+    def __init__(self, conn, h5file, path):
+        Node.__init__(self, conn, h5file, path)
 
     def __repr__(self):
-        return "<Group (db={}, path={})>".format(self.conn.db, self._path)
+        return "<Group (db={}, path={})>".format(self.h5file, self._path)
 
     def _repr_html_(self):
         """ representation in jupyter notebooks """
         img = ICON_GROUP_ATTRS if len(self.attrs) > 0 else ICON_GROUP
         return ("{}<strong>Group {}</strong> (file={})"
-                .format(img, self._path, self.conn.db))
+                .format(img, self._path, self.h5file))
 
     def create_group(self, name):
         """
@@ -140,8 +147,8 @@ class Group(Node):
         args = {
             CMD_KW_PATH: group_path,
         }
-        self.conn.send_rcv(CMD_CREATE_GROUP, args)
-        return Group(self.conn, group_path)
+        self.conn.send_rcv(CMD_CREATE_GROUP, h5file=self.h5file, args=args)
+        return Group(conn=self.conn, h5file=self.h5file, path=group_path)
 
     def require_group(self, name):
         """
@@ -155,8 +162,8 @@ class Group(Node):
         args = {
             CMD_KW_PATH: group_path,
         }
-        self.conn.send_rcv(CMD_REQUIRE_GROUP, args)
-        return Group(self.conn, group_path)
+        self.conn.send_rcv(CMD_REQUIRE_GROUP, h5file=self.h5file, args=args)
+        return Group(conn=self.conn, h5file=self.h5file, path=group_path)
 
     def create_dataset(self, name, **kwargs):
         """
@@ -188,7 +195,8 @@ class Group(Node):
         else:
             data = args["data"]
             del args["data"]
-        result = self.conn.send_rcv(CMD_CREATE_DATASET, args, data)
+        result = self.conn.send_rcv(CMD_CREATE_DATASET, h5file=self.h5file,
+                                    args=args, data=data)
 
         dst = result["data"]  # Dataset
 
@@ -241,7 +249,8 @@ class Group(Node):
         }
         args.update(kwargs)
         del args["data"]  # data must not be a part of ``args``
-        result = self.conn.send_rcv(CMD_REQUIRE_DATASET, args, data)
+        result = self.conn.send_rcv(CMD_REQUIRE_DATASET, h5file=self.h5file,
+                                    args=args, data=data)
         dst = result["data"]  # Dataset
 
         return dst
@@ -250,7 +259,8 @@ class Group(Node):
         args = {
             CMD_KW_PATH: self._path,
         }
-        result = self.conn.send_rcv(CMD_GET_KEYS, args)
+        result = self.conn.send_rcv(CMD_GET_KEYS, h5file=self.h5file,
+                                    args=args)
 
         return result[RESPONSE_DATA][RESPONSE_NODE_KEYS]
 
@@ -329,7 +339,8 @@ class Group(Node):
         args = {
             CMD_KW_PATH: self._path,
         }
-        result = self.conn.send_rcv(CMD_GET_TREE, args)
+        result = self.conn.send_rcv(CMD_GET_TREE, h5file=self.h5file,
+                                    args=args)
         tree = result[RESPONSE_DATA][RESPONSE_NODE_TREE]
 
         return Tree(tree)
@@ -340,19 +351,22 @@ class File(Group):
     File object
     """
 
-    def __enter__(self):
-        return self
+    # def __enter__(self):
+    #     return self
 
-    def __exit__(self, *args):
-        pass
+    # def __exit__(self, *args):
+    #     pass
 
     def _repr_html_(self):
         """ representation in jupyter notebooks """
         txt = ("<strong>File {}</strong>"
-               .format(self.conn.db))
+               .format(self.h5file))
         icon = ICON_GROUP_ATTRS if len(self.attrs) > 0 else ICON_GROUP
         size = self.size_formatted()
         return ('{}{} ({})'.format(icon, txt, size))
+
+    def __repr__(self):
+        return "<File (db={}, path={})>".format(self.h5file, self._path)
 
     def size(self):
         """
@@ -362,7 +376,8 @@ class File(Group):
             int (kB)
         """
         args = {}
-        result = self.conn.send_rcv(CMD_GET_FILESIZE, args)
+        result = self.conn.send_rcv(CMD_GET_FILESIZE, h5file=self.h5file,
+                                    args=args)
 
         return result[RESPONSE_DATA]
 
@@ -392,19 +407,19 @@ class Dataset(Node):
     Wrapper for h5py.Dataset
     """
 
-    def __init__(self, conn, path, shape, dtype):
-        Node.__init__(self, conn, path)
+    def __init__(self, conn, h5file, path, shape, dtype):
+        Node.__init__(self, conn, h5file, path)
         self.__shape = shape
         self.__dtype = dtype
 
     def __repr__(self):
         return ("<Dataset {} {} (db={}, path={})>"
-                .format(self.shape, self.dtype, self.conn.db, self._path))
+                .format(self.shape, self.dtype, self.h5file, self._path))
 
     def _repr_html_(self):
         """ representation in jupyter notebooks """
         txt = ("<strong>Dataset {} {} </strong> (file={}, path={})"
-               .format(self.shape, self.dtype, self.conn.db, self._path))
+               .format(self.shape, self.dtype, self.h5file, self._path))
         icon = ICON_DATASET_ATTRS if len(self.attrs) > 0 else ICON_DATASET
         return ('<img style="{}" src="{}"/>{}'
                 .format(IMG_STYLE, icon, txt))
@@ -428,7 +443,8 @@ class Dataset(Node):
             CMD_KW_PATH: self.path,
             CMD_KW_KEY: key
         }
-        result = self.conn.send_rcv(CMD_SLICE_DATASET, args)
+        result = self.conn.send_rcv(CMD_SLICE_DATASET, h5file=self.h5file,
+                                    args=args)
         return result[RESPONSE_DATA]
 
     def __setitem__(self, key, value):
@@ -439,7 +455,8 @@ class Dataset(Node):
             CMD_KW_PATH: self.path,
             CMD_KW_KEY: key,
         }
-        self.conn.send_rcv(CMD_BROADCAST_DATASET, args, value)
+        self.conn.send_rcv(CMD_BROADCAST_DATASET, h5file=self.h5file,
+                           args=args, data=value)
 
     @property
     def shape(self):
@@ -463,13 +480,14 @@ class AttributeManager(object):
     Provides same features as AttributeManager from h5py.
     """
 
-    def __init__(self, conn, path):
+    def __init__(self, conn, h5file, path):
         """
         Args:
             conn: Connection object
             path: full path to hdf5 node
         """
         self.__conn = conn
+        self.__h5file = h5file
         self.__path = path
 
     def __iter__(self):
@@ -483,6 +501,10 @@ class AttributeManager(object):
     def conn(self, value):
         self.__conn = value
 
+    @property
+    def h5file(self):
+        return self.__h5file
+
     def keys(self):
         """
         Returns attribute keys (list)
@@ -490,7 +512,8 @@ class AttributeManager(object):
         args = {
             CMD_KW_PATH: self.__path,
         }
-        result = self.conn.send_rcv(CMD_ATTRIBUTES_KEYS, args)
+        result = self.conn.send_rcv(CMD_ATTRIBUTES_KEYS, h5file=self.h5file,
+                                    args=args)
         return result[RESPONSE_DATA][RESPONSE_ATTRS_KEYS]
 
     def __contains__(self, key):
@@ -498,7 +521,8 @@ class AttributeManager(object):
             CMD_KW_PATH: self.__path,
             CMD_KW_KEY: key,
         }
-        result = self.conn.send_rcv(CMD_ATTRIBUTES_CONTAINS, args)
+        result = self.conn.send_rcv(CMD_ATTRIBUTES_CONTAINS,
+                                    h5file=self.h5file, args=args)
         return result[RESPONSE_DATA][RESPONSE_ATTRS_CONTAINS]
 
     def __len__(self):
@@ -515,7 +539,8 @@ class AttributeManager(object):
             CMD_KW_PATH: self.__path,
             CMD_KW_KEY: key,
         }
-        result = self.conn.send_rcv(CMD_ATTRIBUTES_GET, args)
+        result = self.conn.send_rcv(CMD_ATTRIBUTES_GET, h5file=self.h5file,
+                                    args=args)
         return result[RESPONSE_DATA]
 
     def __setitem__(self, key, value):
@@ -528,7 +553,8 @@ class AttributeManager(object):
             CMD_KW_KEY: key,
         }
 
-        self.conn.send_rcv(CMD_ATTRIBUTES_SET, args, value)
+        self.conn.send_rcv(CMD_ATTRIBUTES_SET, h5file=self.h5file, args=args,
+                           data=value)
 
     def __delitem__(self, key):
         raise NotImplementedError()
@@ -547,7 +573,8 @@ class AttributeManager(object):
         }
 
         try:
-            response = self.conn.send_rcv(CMD_ATTRIBUTES_GET, args)
+            response = self.conn.send_rcv(CMD_ATTRIBUTES_GET,
+                                          h5file=self.h5file, args=args)
             result = response[RESPONSE_DATA]
         except NodeError as ne:
             if ne.status == KEY_ERROR:

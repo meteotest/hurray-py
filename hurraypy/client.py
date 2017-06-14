@@ -47,20 +47,18 @@ class Connection:
     Connection to an hfive server and database/file
     """
 
-    def __init__(self, host, port, db=None, unix_socket_path=None, no_delay=True):
+    def __init__(self, host, port, unix_socket_path=None, no_delay=True):
         """
         Initialize a connection to a hurray server
 
         Args:
             host: hostname of IP
             port: TCP port
-            db: file to be used
             unix_socket_path: path to unix domain socket
             no_delay: enabe
         """
-        self.__host = host
-        self.__port = port
-        self.__db = db
+        self._host = host
+        self._port = port
 
         if unix_socket_path:
             self.__socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -68,10 +66,30 @@ class Connection:
         else:
             self.__socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             if no_delay:
-                self.__socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                self.__socket.setsockopt(socket.IPPROTO_TCP,
+                                         socket.TCP_NODELAY, 1)
             self.__socket.connect((host, int(port)))
 
         self.__buffer = Buffer(self.__socket)
+
+        parent_self = self
+
+        class _File(File):
+
+            def __init__(self, h5file):
+                result = parent_self.send_rcv(CMD_USE_DATABASE,
+                                              h5file=h5file, args={})
+                # TODO examine result
+                File.__init__(self, conn=parent_self, h5file=h5file, path="/")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, type, value, tb):
+                pass
+
+        # TODO explain
+        self.File = _File
 
     def __enter__(self):
         """
@@ -80,6 +98,12 @@ class Connection:
         return self
 
     def __exit__(self, type, value, tb):
+        self.close()
+
+    def __repr__(self):
+        return "<Connection (host={}, port={})>".format(self._host, self._port)
+
+    def close(self):
         self.__buffer.close()
 
     def create_file(self, name, overwrite=False):
@@ -97,33 +121,12 @@ class Connection:
             DatabaseError if db already exists
         """
         args = {
-            CMD_KW_DB: name,
             CMD_KW_OVERWRITE: overwrite,
         }
-        self.send_rcv(CMD_CREATE_DATABASE, args)
-        self.__db = name
+        result = self.send_rcv(CMD_CREATE_DATABASE, h5file=name, args=args)
+        # TODO examine result!
 
-        return File(conn=self, path='/')
-
-    def use_file(self, name, mode="w"):
-        """
-        Use an hdf5 file
-
-        Args:
-            dbname: str, name of the database
-            mode: 'r' or 'w'
-
-        Returns:
-            An instance of the Group class
-
-        Raises:
-            DatabaseError if ``dbname`` does not exist
-        """
-        # TODO implement mode
-        self.send_rcv(CMD_USE_DATABASE, {CMD_KW_DB: name})
-        self.__db = name
-
-        return File(conn=self, path='/')
+        return File(conn=self, h5file=name, path='/')
 
     def _recv(self):
         """
@@ -158,6 +161,7 @@ class Connection:
 
     def __send_rcv(self, cmd, args, data):
         """
+        helper for ``send_rcv()``
         """
         msg = msgpack.packb({
             CMD_KW_CMD: cmd,
@@ -176,11 +180,12 @@ class Connection:
         # receive answer from server
         return self._recv()
 
-    def send_rcv(self, cmd, args, data=None):
+    def send_rcv(self, cmd, h5file, args, data=None):
         """
         Process a request to the server
 
         Args:
+            h5file: name / relative path of hdf5 file
             cmd: command
             args: command arguments
             data: numpy array or None
@@ -188,9 +193,10 @@ class Connection:
         Returns:
             Tuple (result, array)
         """
-
-        if CMD_KW_DB not in args:
-            args[CMD_KW_DB] = self.__db
+        if CMD_KW_DB in args:
+            raise ValueError("{} must not be in argument 'args'"
+                             .format(CMD_KW_DB))
+        args[CMD_KW_DB] = h5file
 
         result = self.__send_rcv(cmd, args, data)
 
@@ -209,24 +215,16 @@ class Connection:
 
         return result
 
-    @property
-    def db(self):
-        """
-        wrapper
-        """
-        return self.__db
 
-
-def connect(host='localhost', port=2222, db=None, unix_socket_path=None):
+def connect(host='localhost', port=2222, unix_socket_path=None):
     """
     Creates and returns a database connection object.
 
     Args:
         host: hostname or IP address
         port: TCP port
-        db: database name
         unix_socket_path: Unix domain socket path
 
     Returns: database connection.
     """
-    return Connection(host, port, db, unix_socket_path)
+    return Connection(host, port, unix_socket_path)
