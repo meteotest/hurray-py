@@ -76,7 +76,8 @@ class Connection:
 
         class _File(File):
 
-            def __init__(self, h5file):
+            def __init__(self, h5file, mode="w"):
+                # TODO implement mode
                 result = parent_self.send_rcv(CMD_USE_DATABASE,
                                               h5file=h5file, args={})
                 # TODO examine result
