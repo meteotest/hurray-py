@@ -34,6 +34,19 @@ setup(
         'Programming Language :: Python',
         'Programming Language :: Python :: 3.5',
     ],
-    install_requires=['numpy>=1.6.1', 'msgpack-python>=0.4.8'],
+    install_requires=[
+        'numpy>=1.6.1',
+        'msgpack-python>=0.4.8'
+    ],
+    extras_require={
+        "dev": [
+            "sphinx==1.6.1",
+            "sphinx-rtd-theme==0.2.4",
+            "jupyter>=1.0.0",
+            # Note that nbsphinx requires an installation of Pandoc
+            # http://pandoc.org/installing.html
+            "nbsphinx==0.2.14",
+        ],
+    },
     test_suite='tests.get_tests'
 )

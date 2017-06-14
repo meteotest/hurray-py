@@ -12,18 +12,9 @@ Welcome to hurraypy's documentation!
 Contents:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
-   tutorial
-
-Hurray connection
-
-.. autofunction:: connect
-
-Nodes
-
-.. automodule:: hurraypy.nodes
-   :inherited-members:
+   notebooks/tutorial.ipynb
 
 
 Indices and tables
