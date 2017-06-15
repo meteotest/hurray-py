@@ -30,17 +30,17 @@ import os
 
 from hurraypy.exceptions import NodeError
 from hurraypy.protocol import (CMD_GET_NODE, CMD_CREATE_DATASET,
-                               CMD_RENAME_DATABASE, CMD_REQUIRE_DATASET,
-                               RESPONSE_DATA, CMD_ATTRIBUTES_SET,
-                               CMD_ATTRIBUTES_CONTAINS,
+                               CMD_RENAME_DATABASE, CMD_DELETE_DATABASE,
+                               CMD_REQUIRE_DATASET, RESPONSE_DATA,
+                               CMD_ATTRIBUTES_SET, CMD_ATTRIBUTES_CONTAINS,
                                RESPONSE_ATTRS_CONTAINS, CMD_ATTRIBUTES_GET,
                                RESPONSE_ATTRS_KEYS, CMD_ATTRIBUTES_KEYS,
                                RESPONSE_NODE_TREE, CMD_KW_PATH, CMD_KW_SHAPE,
                                CMD_KW_DTYPE, CMD_CREATE_GROUP,
                                CMD_REQUIRE_GROUP, CMD_KW_KEY,
-                               CMD_KW_DB_RENAMETO,
-                               CMD_SLICE_DATASET, CMD_BROADCAST_DATASET,
-                               CMD_GET_KEYS, CMD_GET_FILESIZE, CMD_GET_TREE,
+                               CMD_KW_DB_RENAMETO, CMD_SLICE_DATASET,
+                               CMD_BROADCAST_DATASET, CMD_GET_KEYS,
+                               CMD_GET_FILESIZE, CMD_GET_TREE,
                                RESPONSE_NODE_KEYS)
 from hurraypy.status_codes import KEY_ERROR
 from .ipython import (CSS_TREE, ICON_GROUP, ICON_DATASET, ICON_DATASET_ATTRS,
@@ -420,9 +420,16 @@ class File(Group):
         result = self.conn.send_rcv(CMD_RENAME_DATABASE, h5file=self.h5file,
                                     args={CMD_KW_DB_RENAMETO: new})
         newFile = result[RESPONSE_DATA]
-        self._h5file = newFile.h5file
+        self._h5file = None
 
         return newFile
+
+    def delete(self):
+        """
+        Delete hdf5 file.
+        """
+        self.conn.send_rcv(CMD_DELETE_DATABASE, h5file=self.h5file, args={})
+        self._h5file = None
 
 
 class Dataset(Node):

@@ -147,6 +147,9 @@ class Connection:
         log.debug("Handle request (Protocol: v%d, Msg size: %d)",
                   protocol_ver, msg_length)
 
+        log.debug("Read total of {} bytes ..."
+                  .format(2 * MSG_LEN + msg_length))
+
         msg_data = self.__buffer.read_bytes(msg_length)
 
         # decode message
