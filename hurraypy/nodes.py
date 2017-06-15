@@ -29,8 +29,8 @@ Hdf5 entities (Nodes, Groups, Datasets)
 import os
 
 from hurraypy.exceptions import NodeError
-from hurraypy.protocol import (CMD_GET_NODE,
-                               CMD_CREATE_DATASET, CMD_REQUIRE_DATASET,
+from hurraypy.protocol import (CMD_GET_NODE, CMD_CREATE_DATASET,
+                               CMD_RENAME_DATABASE, CMD_REQUIRE_DATASET,
                                RESPONSE_DATA, CMD_ATTRIBUTES_SET,
                                CMD_ATTRIBUTES_CONTAINS,
                                RESPONSE_ATTRS_CONTAINS, CMD_ATTRIBUTES_GET,
@@ -38,6 +38,7 @@ from hurraypy.protocol import (CMD_GET_NODE,
                                RESPONSE_NODE_TREE, CMD_KW_PATH, CMD_KW_SHAPE,
                                CMD_KW_DTYPE, CMD_CREATE_GROUP,
                                CMD_REQUIRE_GROUP, CMD_KW_KEY,
+                               CMD_KW_DB_RENAMETO,
                                CMD_SLICE_DATASET, CMD_BROADCAST_DATASET,
                                CMD_GET_KEYS, CMD_GET_FILESIZE, CMD_GET_TREE,
                                RESPONSE_NODE_KEYS)
@@ -400,6 +401,28 @@ class File(Group):
             return '{0:.0f}K'.format(kilobytes)
         else:  # bytes
             return '{0}b'.format(size)
+
+    def rename(self, new):
+        """
+        Rename hdf5 file. Returns a new ``File`` object. Note that the
+        existing object becomes unusable after renaming.
+
+        Warning: existing ``Group`` and ``Dataset`` objects may contain
+        references to the "old" file and become unusable after renaming the
+        file.
+
+        Args:
+            new: new filename
+
+        Returns:
+            new ``File`` object
+        """
+        result = self.conn.send_rcv(CMD_RENAME_DATABASE, h5file=self.h5file,
+                                    args={CMD_KW_DB_RENAMETO: new})
+        newFile = result[RESPONSE_DATA]
+        self._h5file = newFile.h5file
+
+        return newFile
 
 
 class Dataset(Node):
