@@ -208,14 +208,15 @@ class Connection:
 
         # Handle errors
         if status >= 200:
+            error_msg = result.get(CMD_KW_DATA, "")
             if 200 <= status < 300:
-                raise MessageError(status)
+                raise MessageError(status, error_msg)
             if 300 <= status < 400:
-                raise DatabaseError(status)
+                raise DatabaseError(status, error_msg)
             if 400 <= status < 500:
-                raise NodeError(status)
+                raise NodeError(status, error_msg)
             if 500 <= status < 600:
-                raise ServerError(status)
+                raise ServerError(status, error_msg)
 
         return result
 

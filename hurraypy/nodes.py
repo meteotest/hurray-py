@@ -166,22 +166,33 @@ class Group(Node):
         self.conn.send_rcv(CMD_REQUIRE_GROUP, h5file=self.h5file, args=args)
         return Group(conn=self.conn, h5file=self.h5file, path=group_path)
 
-    def create_dataset(self, name, **kwargs):
+    def create_dataset(self, name, shape=None, dtype=None, data=None):
         """
-        Provide either ``data`` or both ``shape`` and ``init_value``.
+        Create a new dataset. You can initialize the dataset either with a
+        NumPy array (``data``) or with ``shape`` and ``dtype`` arguments.
+
+        If ``shape`` and ``dtype`` are specified along with data, they will
+        override ``data.shape`` and ``data.dtype``.
+
+        Examples::
+
+            >>> dset = f.create_dataset("mydst", (200, 400))
+            >>> dset = f.create_dataset("mydst2", (200, 400), dtype=np.float64)
+            >>> dset = f.create_dataset("mydst3", data=some_numpy_array)
 
         Args:
-            name: name or path of the dataset
+            name: name/path of the dataset
+            shape: shape of dataset (tuple)
+            dtype: data type of dataset
             data: numpy array
-            shape: tuple denoting the shape of the array to be created
             init_value: initial value to be used to create array. Possible
                 values: either a scalar (int, float) or 'random'
-            dtype: if ``init_value`` is 'random', you can optionally provide
-                a dtype.
             attrs: dictionary of attributes TODO
 
         Raises:
-            ValueError is dataset already exists
+            ValueError if dataset already exists, if ``shape`` does not match
+            ``data.shape``, or if it is not possible to cast ``data.dtype`` to
+            ``dtype``.
 
         Returns:
             ``Dataset`` object
@@ -190,12 +201,10 @@ class Group(Node):
         args = {
             CMD_KW_PATH: dst_path,
         }
-        args.update(kwargs)
-        if "data" not in args:
-            data = None
-        else:
-            data = args["data"]
-            del args["data"]
+        if shape is not None:
+            args["shape"] = shape
+        if dtype is not None:
+            args["dtype"] = dtype
         result = self.conn.send_rcv(CMD_CREATE_DATASET, h5file=self.h5file,
                                     args=args, data=data)
 
