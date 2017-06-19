@@ -33,11 +33,15 @@ from hurraypy.protocol import (CMD_GET_NODE, CMD_CREATE_DATASET,
                                CMD_RENAME_DATABASE, CMD_DELETE_DATABASE,
                                CMD_REQUIRE_DATASET, RESPONSE_DATA,
                                CMD_ATTRIBUTES_SET, CMD_ATTRIBUTES_CONTAINS,
+                               CMD_CREATE_GROUP, CMD_REQUIRE_GROUP,
                                RESPONSE_ATTRS_CONTAINS, CMD_ATTRIBUTES_GET,
                                RESPONSE_ATTRS_KEYS, CMD_ATTRIBUTES_KEYS,
-                               RESPONSE_NODE_TREE, CMD_KW_PATH, CMD_KW_SHAPE,
-                               CMD_KW_DTYPE, CMD_CREATE_GROUP,
-                               CMD_REQUIRE_GROUP, CMD_KW_KEY,
+                               RESPONSE_NODE_TREE, CMD_KW_PATH,
+                               CMD_KW_SHAPE, CMD_KW_DTYPE,
+                               CMD_KW_COMPRESSION, CMD_KW_COMPRESSION_OPTS,
+                               CMD_KW_CHUNKS, CMD_KW_REQUIRE_EXACT,
+                               CMD_KW_FILLVALUE,
+                               CMD_KW_KEY,
                                CMD_KW_DB_RENAMETO, CMD_SLICE_DATASET,
                                CMD_BROADCAST_DATASET, CMD_GET_KEYS,
                                CMD_GET_FILESIZE, CMD_GET_TREE,
@@ -166,7 +170,9 @@ class Group(Node):
         self.conn.send_rcv(CMD_REQUIRE_GROUP, h5file=self.h5file, args=args)
         return Group(conn=self.conn, h5file=self.h5file, path=group_path)
 
-    def create_dataset(self, name, shape=None, dtype=None, data=None):
+    def create_dataset(self, name, shape=None, dtype=None, data=None,
+                       chunks=True, compression=None, compression_opts=None,
+                       fillvalue=None):
         """
         Create a new dataset. You can initialize the dataset either with a
         NumPy array (``data``) or with ``shape`` and ``dtype`` arguments.
@@ -185,9 +191,21 @@ class Group(Node):
             shape: shape of dataset (tuple)
             dtype: data type of dataset
             data: numpy array
-            init_value: initial value to be used to create array. Possible
-                values: either a scalar (int, float) or 'random'
-            attrs: dictionary of attributes TODO
+            chunks: Chunk shape, or True to enable auto-chunking (default)
+            compression: ``None`` (default) or name of compression filter.
+                Available filters:
+                "gzip": Good compression, moderate speed.  ``compression_opts``
+                sets the compression level and may be an integer from 0 to 9,
+                default is 4.
+                "lzf": Low to moderate compression, very fast. No options.
+                "szip": Patent-encumbered filter used in the NASA community.
+                Not available with all installations of HDF5 due to legal
+                reasons. Consult the HDF5 docs for filter options.
+                Cf. http://docs.h5py.org/en/latest/high/dataset.html for more
+                details.
+            compression_opts: options for compression filter.
+            fillvalue: This value will be used when reading uninitialized parts
+                of the dataset
 
         Raises:
             ValueError if dataset already exists, if ``shape`` does not match
@@ -197,14 +215,28 @@ class Group(Node):
         Returns:
             ``Dataset`` object
         """
+        if data is None and shape is None:
+            raise ValueError("Either 'data' or 'shape' must be specified")
+
+        if compression not in (None, "gzip", "lzf", "szip"):
+            raise ValueError("Unknown 'compression' filter: {}"
+                             .format(compression))
+
         dst_path = self._compose_path(name)
         args = {
             CMD_KW_PATH: dst_path,
+            CMD_KW_CHUNKS: chunks,
         }
         if shape is not None:
-            args["shape"] = shape
+            args[CMD_KW_SHAPE] = shape
         if dtype is not None:
-            args["dtype"] = dtype
+            args[CMD_KW_DTYPE] = dtype
+        if compression is not None:
+            args[CMD_KW_COMPRESSION] = compression
+        if compression_opts is not None:
+            args[CMD_KW_COMPRESSION_OPTS] = compression_opts
+        if fillvalue is not None:
+            args[CMD_KW_FILLVALUE] = fillvalue
         result = self.conn.send_rcv(CMD_CREATE_DATASET, h5file=self.h5file,
                                     args=args, data=data)
 
@@ -212,23 +244,18 @@ class Group(Node):
 
         return dst
 
-    def require_dataset(self, name, **kwargs):
+    def require_dataset(self, name, shape=None, dtype=None, data=None,
+                        chunks=True, compression=None, compression_opts=None,
+                        fillvalue=None, exact=False):
         """
         Open a dataset, creating it if it doesn’t exist.
 
         If keyword ``exact`` is False (default), an existing dataset must have
-        the same shape and a conversion-compatible dtype to be returned. If
-        True, the shape and dtype must match exactly.
+        the same shape and a conversion-compatible dtype. If True, the shape
+        and dtype must match exactly.
 
         Other dataset keywords (see ``create_dataset()``) may be provided, but
         are only used if a new dataset is to be created.
-
-        Args:
-            name: name or path of the dataset
-            data: numpy array
-            shape: tuple denoting the shape of the array to be created
-            dtype: data type (string or numpy type, e.g., ``np.float64``)
-            exact: Require shape and type to match exactly?
 
         Returns:
             ``Dataset`` object
@@ -238,29 +265,28 @@ class Group(Node):
             ``MessageError`` if an incompatible object already exists, or if
             the shape or dtype don’t match according to the above rules.
         """
-        data = kwargs.get("data", None)
-        shape = kwargs.get("shape", None)
-        dtype = kwargs.get("dtype", None)
-
-        if data is None:
-            if shape is None or dtype is None:
-                raise ValueError("missing arguments: 'shape' and 'dtype'")
-        else:
-            if shape is None:
-                shape = data.shape
-            if dtype is None:
-                dtype = data.dtype
+        if data is None and shape is None:
+            raise ValueError("Either 'data' or 'shape' must be specified")
 
         dst_path = self._compose_path(name)
         args = {
             CMD_KW_PATH: dst_path,
-            CMD_KW_SHAPE: shape,
-            CMD_KW_DTYPE: dtype,
+            CMD_KW_REQUIRE_EXACT: exact,
+            CMD_KW_CHUNKS: chunks,
         }
-        args.update(kwargs)
-        del args["data"]  # data must not be a part of ``args``
+        if shape is not None:
+            args[CMD_KW_SHAPE] = shape
+        if dtype is not None:
+            args[CMD_KW_DTYPE] = dtype
+        if compression is not None:
+            args[CMD_KW_COMPRESSION] = compression
+        if compression_opts is not None:
+            args[CMD_KW_COMPRESSION_OPTS] = compression_opts
+        if fillvalue is not None:
+            args[CMD_KW_FILLVALUE] = fillvalue
         result = self.conn.send_rcv(CMD_REQUIRE_DATASET, h5file=self.h5file,
                                     args=args, data=data)
+
         dst = result["data"]  # Dataset
 
         return dst
@@ -530,7 +556,9 @@ class AttributeManager(object):
         self.__path = path
 
     def __iter__(self):
-        raise NotImplementedError()
+        # In order to be compatible with h5py, we return a generator.
+        for key in self.keys():
+            yield key
 
     @property
     def conn(self):
