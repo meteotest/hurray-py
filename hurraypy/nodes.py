@@ -46,7 +46,7 @@ from hurraypy.protocol import (CMD_GET_NODE, CMD_CREATE_DATASET,
                                CMD_BROADCAST_DATASET, CMD_GET_KEYS,
                                CMD_GET_FILESIZE, CMD_GET_TREE,
                                RESPONSE_NODE_KEYS)
-from hurraypy.status_codes import KEY_ERROR
+from hurraypy.status_codes import KEY_ERROR, NODE_NOT_FOUND
 from .ipython import (CSS_TREE, ICON_GROUP, ICON_DATASET, ICON_DATASET_ATTRS,
                       ICON_GROUP_ATTRS, IMG_STYLE)
 
@@ -99,14 +99,20 @@ class Node(object):
             An instance of Node (or of a subclass).
 
         Raises:
-            NodeError if object does not exist.
+            KeyError if object does not exist.
         """
         path = self._compose_path(key)
         args = {
             CMD_KW_PATH: path,
         }
-        result = self.conn.send_rcv(CMD_GET_NODE, h5file=self.h5file,
-                                    args=args)
+        try:
+            result = self.conn.send_rcv(CMD_GET_NODE, h5file=self.h5file,
+                                        args=args)
+        except NodeError as e:
+            if e.status == NODE_NOT_FOUND:
+                raise KeyError("group/dataset not found")
+            else:
+                raise e
 
         node = result[RESPONSE_DATA]  # Group or Dataset
 
