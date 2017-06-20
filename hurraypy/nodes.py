@@ -28,7 +28,7 @@ Hdf5 entities (Nodes, Groups, Datasets)
 
 import os
 
-from hurraypy.exceptions import NodeError
+from hurraypy.exceptions import NodeError, MessageError
 from hurraypy.protocol import (CMD_GET_NODE, CMD_CREATE_DATASET,
                                CMD_RENAME_DATABASE, CMD_DELETE_DATABASE,
                                CMD_REQUIRE_DATASET, RESPONSE_DATA,
@@ -46,7 +46,7 @@ from hurraypy.protocol import (CMD_GET_NODE, CMD_CREATE_DATASET,
                                CMD_BROADCAST_DATASET, CMD_GET_KEYS,
                                CMD_GET_FILESIZE, CMD_GET_TREE,
                                RESPONSE_NODE_KEYS)
-from hurraypy.status_codes import KEY_ERROR, NODE_NOT_FOUND
+from hurraypy.status_codes import KEY_ERROR, NODE_NOT_FOUND, INCOMPATIBLE_DATA
 from .ipython import (CSS_TREE, ICON_GROUP, ICON_DATASET, ICON_DATASET_ATTRS,
                       ICON_GROUP_ATTRS, IMG_STYLE)
 
@@ -290,8 +290,15 @@ class Group(Node):
             args[CMD_KW_COMPRESSION_OPTS] = compression_opts
         if fillvalue is not None:
             args[CMD_KW_FILLVALUE] = fillvalue
-        result = self.conn.send_rcv(CMD_REQUIRE_DATASET, h5file=self.h5file,
-                                    args=args, data=data)
+        try:
+            result = self.conn.send_rcv(CMD_REQUIRE_DATASET,
+                                        h5file=self.h5file, args=args,
+                                        data=data)
+        except MessageError as e:
+            if e.status == INCOMPATIBLE_DATA:
+                raise TypeError("shape or dtype incompatible")
+            else:
+                raise e
 
         dst = result["data"]  # Dataset
 
@@ -457,6 +464,9 @@ class File(Group):
 
         Returns:
             new ``File`` object
+
+        Raises:
+            TODO
         """
         result = self.conn.send_rcv(CMD_RENAME_DATABASE, h5file=self.h5file,
                                     args={CMD_KW_DB_RENAMETO: new})

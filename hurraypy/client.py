@@ -38,9 +38,10 @@ from hurraypy.exceptions import (MessageError, DatabaseError, NodeError,
 from .log import log
 from .msgpack_ext import get_decoder, encode
 from .nodes import File, Node
-from .protocol import (CMD_CREATE_DATABASE, CMD_KW_STATUS, CMD_KW_DB,
-                       CMD_KW_OVERWRITE, CMD_USE_DATABASE, CMD_KW_CMD,
-                       CMD_KW_ARGS, CMD_KW_DATA, MSG_LEN, PROTOCOL_VER)
+from .protocol import (CMD_CREATE_DATABASE, CMD_LIST_DATABASES, CMD_KW_STATUS,
+                       CMD_KW_DB, CMD_KW_PATH, CMD_KW_OVERWRITE,
+                       CMD_USE_DATABASE, CMD_KW_CMD, CMD_KW_ARGS, CMD_KW_DATA,
+                       RESPONSE_DATA, MSG_LEN, PROTOCOL_VER)
 
 
 class Connection:
@@ -139,6 +140,20 @@ class Connection:
 
         return File(conn=self, h5file=name, path='/')
 
+    def list_files(self, path=""):
+        """
+        Returns a dict mapping file names in a directory (use ``path=""`` or
+        omit ``path`` for the root directory) to various properties such as
+        filesize.
+        """
+        args = {
+            CMD_KW_PATH: path,
+        }
+        result = self.send_rcv(CMD_LIST_DATABASES, args=args)
+        files = result[RESPONSE_DATA]
+
+        return files
+
     def _recv(self):
         """
         Receive and decode message
@@ -194,14 +209,14 @@ class Connection:
         # receive answer from server
         return self._recv()
 
-    def send_rcv(self, cmd, h5file, args, data=None):
+    def send_rcv(self, cmd, args, h5file=None, data=None):
         """
         Process a request to the server
 
         Args:
-            h5file: name / relative path of hdf5 file
             cmd: command
             args: command arguments
+            h5file: name / relative path to hdf5 file
             data: numpy array or None
 
         Returns:
@@ -210,7 +225,9 @@ class Connection:
         if CMD_KW_DB in args:
             raise ValueError("{} must not be in argument 'args'"
                              .format(CMD_KW_DB))
-        args[CMD_KW_DB] = h5file
+        else:
+            if h5file is not None:
+                args[CMD_KW_DB] = h5file
 
         result = self.__send_rcv(cmd, args, data)
 
