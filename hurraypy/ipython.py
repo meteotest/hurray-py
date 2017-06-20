@@ -13,8 +13,11 @@ CSS_TREE = """
 .hurraytree, .hurraytree ul{
   font: normal normal 14px/20px Helvetica, Arial, sans-serif;
   list-style-type: none;
+  list-style: none;
   margin-left: 0 0 0 2px !important;
+  margin-top: 0;
   padding: 0;
+  padding-left: 1em;
   position: relative;
   overflow:hidden;
 }
@@ -23,6 +26,7 @@ CSS_TREE = """
   margin: 0;
   padding: 0 12px;
   position: relative;
+  list-style: none;
 }
 
 .hurraytree li::before, .hurraytree li::after{
