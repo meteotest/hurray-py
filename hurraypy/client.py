@@ -28,6 +28,7 @@ hurray Python client, connection interface
 
 import socket
 import struct
+import os
 
 import msgpack
 
@@ -47,22 +48,26 @@ class Connection:
     Connection to an hfive server and database/file
     """
 
-    def __init__(self, host, port, unix_socket_path=None, no_delay=True):
+    def __init__(self, host=None, port=None, udsocket=None, no_delay=True):
         """
         Initialize a connection to a hurray server
 
         Args:
             host: hostname of IP
             port: TCP port
-            unix_socket_path: path to unix domain socket
-            no_delay: enabe
+            udsocket: path to unix domain socket
+            no_delay: enable
         """
         self._host = host
         self._port = port
+        if udsocket:
+            self._udsocket = os.path.abspath(os.path.expanduser(udsocket))
+        else:
+            self._udsocket = None
 
-        if unix_socket_path:
+        if udsocket:
             self.__socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.__socket.connect(unix_socket_path)
+            self.__socket.connect(self._udsocket)
         else:
             self.__socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             if no_delay:
@@ -73,6 +78,8 @@ class Connection:
         self.__buffer = Buffer(self.__socket)
 
         parent_self = self
+
+        # File-wrapper to mimic the API of h5py, i.e., conn.File()
 
         class _File(File):
 
@@ -89,7 +96,6 @@ class Connection:
             def __exit__(self, type, value, tb):
                 pass
 
-        # TODO explain
         self.File = _File
 
     def __enter__(self):
@@ -102,7 +108,11 @@ class Connection:
         self.close()
 
     def __repr__(self):
-        return "<Connection (host={}, port={})>".format(self._host, self._port)
+        if self._udsocket is not None:
+            return "<Connection (udsocket={})>".format(self._udsocket)
+        else:
+            return ("<Connection (host={}, port={})>"
+                    .format(self._host, self._port))
 
     def close(self):
         self.__buffer.close()
@@ -221,15 +231,24 @@ class Connection:
         return result
 
 
-def connect(host='localhost', port=2222, unix_socket_path=None):
+# def connect(host='localhost', port=2222, udsocket=None):
+def connect(addr):
     """
     Creates and returns a database connection object.
 
     Args:
-        host: hostname or IP address
-        port: TCP port
-        unix_socket_path: Unix domain socket path
+        addr: either "host:port" or path to a UNIX domain socket. If port is
+            omitted, default port ``2222`` is used. Examples:
+            "localhost:2222", "~/hurray.sock", "192.168.1.2"
 
-    Returns: database connection.
+    Returns: Connection object
     """
-    return Connection(host, port, unix_socket_path)
+    if "/" in addr:
+        return Connection(udsocket=addr)
+    else:
+        if ":" in addr:
+            host, port = addr.split(":")
+            port = int(port)
+            return Connection(host=host, port=port)
+        else:
+            return Connection(host=addr, port=2222)
