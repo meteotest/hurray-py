@@ -320,6 +320,7 @@ class Group(Node):
     def __contains__(self, key):
         args = {
             CMD_KW_PATH: self._path,
+            CMD_KW_KEY: key
         }
         result = self.conn.send_rcv(CMD_CONTAINS, h5file=self.h5file,
                                     args=args)
