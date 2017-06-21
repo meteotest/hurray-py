@@ -29,7 +29,7 @@ Hdf5 entities (Nodes, Groups, Datasets)
 import os
 
 from hurraypy.exceptions import NodeError, MessageError
-from hurraypy.protocol import (CMD_GET_NODE, CMD_CREATE_DATASET,
+from hurraypy.protocol import (CMD_GET_NODE, CMD_CONTAINS, CMD_CREATE_DATASET,
                                CMD_RENAME_DATABASE, CMD_DELETE_DATABASE,
                                CMD_REQUIRE_DATASET, RESPONSE_DATA,
                                CMD_ATTRIBUTES_SET, CMD_ATTRIBUTES_CONTAINS,
@@ -318,7 +318,13 @@ class Group(Node):
             yield key, self[key]
 
     def __contains__(self, key):
-        raise NotImplementedError()
+        args = {
+            CMD_KW_PATH: self._path,
+        }
+        result = self.conn.send_rcv(CMD_CONTAINS, h5file=self.h5file,
+                                    args=args)
+
+        return result[RESPONSE_DATA]
 
     def __delitem__(self, key):
         raise NotImplementedError()
