@@ -314,9 +314,8 @@ class Group(Node):
         return result[RESPONSE_DATA][RESPONSE_NODE_KEYS]
 
     def items(self):
-        """
-        """
-        raise NotImplementedError()
+        for key in self.keys():
+            yield key, self[key]
 
     def __contains__(self, key):
         raise NotImplementedError()
